@@ -30,7 +30,7 @@ from typing import Optional, Text
 
 from pydantic import Field
 
-from mongotic import create_engine, select
+from mongotic import MultipleResultsFound, NotFound, create_engine, select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 
@@ -51,22 +51,46 @@ Session = sessionmaker(bind=engine)
 # ── Add ──────────────────────────────────────────────────────────────────────
 session = Session()
 session.add(User(name="Allen Chou", email="allen@example.com", company="Acme", age=30))
+session.add_all([
+    User(name="Bob", email="bob@example.com", company="Acme", age=25),
+    User(name="Carol", email="carol@example.com", company="Acme", age=28),
+])
 session.commit()
 
 # ── Query ────────────────────────────────────────────────────────────────────
 session = Session()
 
+# Fetch all / first
 users = session.scalars(select(User)).all()
 users = session.scalars(select(User).where(User.age > 18)).all()
 users = session.scalars(
     select(User)
     .where(User.company == "Acme")
-    .order_by(-User.age)
+    .order_by(-User.age)      # descending; use User.age for ascending
     .limit(10)
+    .offset(0)
 ).all()
 
 user = session.scalars(select(User).where(User.email == "allen@example.com")).first()
 user = session.get(User, "<object_id_string>")   # PK lookup; returns None if not found
+
+# Strict single-result fetch
+try:
+    user = session.scalars(select(User).where(User.email == "allen@example.com")).one()
+    # raises NotFound if 0 results; raises MultipleResultsFound if 2+ results
+except NotFound:
+    ...
+except MultipleResultsFound:
+    ...
+
+user = session.scalars(
+    select(User).where(User.email == "allen@example.com")
+).one_or_none()
+# returns None if 0 results; raises MultipleResultsFound if 2+ results
+
+# Count and existence check
+count = session.scalars(select(User).where(User.company == "Acme")).count()
+exists = session.scalars(select(User).where(User.company == "Acme")).exists()
 
 # ── Update ───────────────────────────────────────────────────────────────────
 session = Session()
@@ -82,7 +106,7 @@ session.commit()
 
 # ── Context manager + flush ──────────────────────────────────────────────────
 with Session() as session:
-    new_user = User(name="Bob", email="bob@example.com", age=25)
+    new_user = User(name="Dave", email="dave@example.com", age=35)
     session.add(new_user)
     session.flush()          # writes immediately; new_user._id is now available
     print(new_user._id)

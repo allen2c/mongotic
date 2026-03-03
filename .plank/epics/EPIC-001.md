@@ -3,7 +3,7 @@ id: EPIC-001
 title: "v0.3.0 - SQLAlchemy v2 Alignment (Breaking Change)"
 status: in-progress
 created: 2026-03-03
-updated: 2026-03-03  # Phase 0 & 1 complete
+updated: 2026-03-03  # Phase 0, 1 & 2 complete
 issues:
   - MGT-001
   - MGT-012

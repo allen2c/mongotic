@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Optional, Text
 
+import pytest
 from pyassorted.datetime import aware_datetime_now
 from pyassorted.string import rand_str
 from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import select
+from mongotic import MultipleResultsFound, NotFound, select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import ScalarResult, sessionmaker
 
@@ -159,6 +160,49 @@ def test_context_manager_and_flush(mongo_engine: "MongoClient"):
         session.flush()
         assert new_user._id is not None
         session.commit()
+
+
+def test_scalars_one(mongo_engine: "MongoClient"):
+    Session = sessionmaker(bind=mongo_engine)
+    session = Session()
+
+    # 1 result → returns the instance
+    existing = session.scalars(select(User).where(User.company == test_company)).first()
+    assert existing is not None
+    user = session.scalars(select(User).where(User.email == existing.email)).one()
+    assert user._id == existing._id
+
+    # 0 results → raises NotFound
+    with pytest.raises(NotFound):
+        session.scalars(select(User).where(User.company == "NO_SUCH_COMPANY")).one()
+
+    # 2+ results → raises MultipleResultsFound
+    with pytest.raises(MultipleResultsFound):
+        session.scalars(select(User).where(User.company == test_company)).one()
+
+
+def test_scalars_one_or_none(mongo_engine: "MongoClient"):
+    Session = sessionmaker(bind=mongo_engine)
+    session = Session()
+
+    # 1 result → returns the instance
+    existing = session.scalars(select(User).where(User.company == test_company)).first()
+    assert existing is not None
+    user = session.scalars(
+        select(User).where(User.email == existing.email)
+    ).one_or_none()
+    assert user is not None
+    assert user._id == existing._id
+
+    # 0 results → returns None
+    result = session.scalars(
+        select(User).where(User.company == "NO_SUCH_COMPANY")
+    ).one_or_none()
+    assert result is None
+
+    # 2+ results → raises MultipleResultsFound
+    with pytest.raises(MultipleResultsFound):
+        session.scalars(select(User).where(User.company == test_company)).one_or_none()
 
 
 def test_delete_operation(mongo_engine: "MongoClient"):

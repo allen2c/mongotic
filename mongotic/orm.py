@@ -65,20 +65,24 @@ class ScalarResult:
         return self._hydrate(doc) if doc else None
 
     def one(self) -> "MongoBaseModel":
-        results = self.all()
-        if len(results) == 0:
+        cursor = self._build_cursor()
+        cursor = cursor.limit(2)
+        docs = list(cursor)
+        if len(docs) == 0:
             raise NotFound("No result found")
-        if len(results) > 1:
-            raise MultipleResultsFound(f"Expected one result, got {len(results)}")
-        return results[0]
+        if len(docs) > 1:
+            raise MultipleResultsFound("Expected one result, got multiple")
+        return self._hydrate(docs[0])
 
     def one_or_none(self) -> Optional["MongoBaseModel"]:
-        results = self.all()
-        if len(results) == 0:
+        cursor = self._build_cursor()
+        cursor = cursor.limit(2)
+        docs = list(cursor)
+        if len(docs) == 0:
             return None
-        if len(results) > 1:
-            raise MultipleResultsFound(f"Expected one result, got {len(results)}")
-        return results[0]
+        if len(docs) > 1:
+            raise MultipleResultsFound("Expected one result, got multiple")
+        return self._hydrate(docs[0])
 
     def count(self) -> int:
         from mongotic.model import ModelFieldOperation
