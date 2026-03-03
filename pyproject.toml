@@ -8,7 +8,7 @@ readme = "README.md"
 keywords = ["mongodb", "sqlalchemy", "pydantic"]
 homepage = "https://github.com/allen2c/mongotic"
 repository = "https://github.com/allen2c/mongotic"
-documentation = "https://github.com/allen2c/mongotic"
+documentation = "https://allen2c.github.io/mongotic/"
 
 [tool.poetry.dependencies]
 python = ">=3.11.0,<3.15.0"

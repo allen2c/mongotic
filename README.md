@@ -2,6 +2,8 @@
 
 The concept of MongoDB, SQLAlchemy, and Pydantic combined together in one simple and effective solution. It enables you to use SQLAlchemy v2 query syntax with MongoDB, and allows you to define your data models using Pydantic.
 
+**Documentation:** [https://allen2c.github.io/mongotic/](https://allen2c.github.io/mongotic/)
+
 > **Project management:** Issues and epics are tracked with [PLANK](https://github.com/allen2c/PLANK) under `.plank/`.
 
 ## Overview
