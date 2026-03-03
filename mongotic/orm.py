@@ -1,4 +1,16 @@
-from typing import TYPE_CHECKING, Any, Dict, Generic, List, Optional, Protocol, Text, Tuple, Type, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Text,
+    Tuple,
+    Type,
+    TypeVar,
+)
 
 if TYPE_CHECKING:
     from mongotic.query import Select

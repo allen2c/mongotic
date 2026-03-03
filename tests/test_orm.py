@@ -2,13 +2,13 @@ from datetime import datetime
 from typing import Optional, Text
 
 import pytest
-from tests.helpers import rand_str, utc_now
 from pydantic import Field
 from pymongo import MongoClient
 
 from mongotic import MultipleResultsFound, NotFound, delete, select, update
 from mongotic.model import MongoBaseModel
 from mongotic.orm import ScalarResult, sessionmaker
+from tests.helpers import rand_str, utc_now
 
 test_company = f"test_{rand_str(10)}"
 

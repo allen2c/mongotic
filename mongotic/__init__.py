@@ -35,6 +35,6 @@ def create_engine(
         tz_aware=tz_aware,
         connect=connect,
         type_registry=type_registry,
-        **kwargs
+        **kwargs,
     )
     return engine

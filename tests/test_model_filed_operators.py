@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Optional, Text
 
-from tests.helpers import rand_str, utc_now
 from pydantic import Field
 from pymongo import MongoClient
 
 from mongotic import select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
+from tests.helpers import rand_str, utc_now
 
 test_name = f"test_{rand_str(10)}"
 test_email = f"test_{rand_str(10)}@example.com"
