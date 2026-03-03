@@ -6,6 +6,7 @@ from pyassorted.string import rand_str
 from pydantic import Field
 from pymongo import MongoClient
 
+from mongotic import select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 
@@ -45,102 +46,78 @@ def test_query_filter_operators(mongo_engine: "MongoClient"):
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name == test_name)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.name == test_name)
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name == "NAME NOT EXISTS")
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.name == "NAME NOT EXISTS")
+    ).all()
     assert len(users) == 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name != test_name)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.name != test_name)
+    ).all()
     assert len(users) == 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name != "NAME NOT EXISTS")
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.name != "NAME NOT EXISTS")
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.age > test_age)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age > test_age)
+    ).all()
     assert len(users) == 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.age > test_age - 1)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age > test_age - 1)
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.age >= test_age)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age >= test_age)
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.age < test_age)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age < test_age)
+    ).all()
     assert len(users) == 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.age < test_age + 1)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age < test_age + 1)
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.age <= test_age)
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age <= test_age)
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name.in_([test_name]))
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.name.in_([test_name]))
+    ).all()
     assert len(users) > 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name.in_(["NAME NOT EXISTS"]))
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(
+            User.company == test_company, User.name.in_(["NAME NOT EXISTS"])
+        )
+    ).all()
     assert len(users) == 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name.not_in([test_name]))
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.name.not_in([test_name]))
+    ).all()
     assert len(users) == 0
 
-    users = (
-        session.query(User)
-        .filter(User.company == test_company, User.name.not_in(["NAME NOT EXISTS"]))
-        .all()
-    )
+    users = session.scalars(
+        select(User).where(
+            User.company == test_company, User.name.not_in(["NAME NOT EXISTS"])
+        )
+    ).all()
     assert len(users) > 0
 
 
@@ -148,7 +125,9 @@ def test_clean_documents(mongo_engine: "MongoClient"):
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
-    users = session.query(User).filter_by(company=test_company).limit(10).all()
+    users = session.scalars(
+        select(User).where(User.company == test_company).limit(10)
+    ).all()
 
     for user in users:
         session.delete(user)

@@ -3,7 +3,7 @@ id: EPIC-001
 title: "v0.3.0 - SQLAlchemy v2 Alignment (Breaking Change)"
 status: in-progress
 created: 2026-03-03
-updated: 2026-03-03
+updated: 2026-03-03  # Phase 0 & 1 complete
 issues:
   - MGT-001
   - MGT-012
@@ -31,17 +31,40 @@ semantics. The old `session.query()` API is removed in favour of `select()` +
 
 v0.3.0 is considered complete when:
 
-- [ ] `session.query()` no longer exists
-- [ ] `select(Model).where(...).order_by(...).limit(...).offset(...)` works
-- [ ] `session.scalars(stmt)` returns a `ScalarResult`
-- [ ] `ScalarResult` has: `.all()`, `.first()`, `.one()`, `.one_or_none()`, `.count()`, `.exists()`
-- [ ] `session.get(Model, id)` returns instance or `None`
-- [ ] `session.flush()` and `session.rollback()` work
-- [ ] `session.add_all([...])` works
-- [ ] `update()` and `delete()` statement builders work via `session.execute()`
-- [ ] All known bugs in `_commit` and `__setattr__` tracking are fixed
-- [ ] All tests pass under the new API
-- [ ] Migration guide from v0.2.0 is written
+- [x] `session.query()` no longer exists
+- [x] `select(Model).where(...).order_by(...).limit(...).offset(...)` works
+- [x] `session.scalars(stmt)` returns a `ScalarResult`
+- [x] `ScalarResult` has: `.all()`, `.first()`, `.one()`, `.one_or_none()`, `.count()`, `.exists()`
+- [x] `session.get(Model, id)` returns instance or `None`
+- [x] `session.flush()` writes staged ops and makes `_id` available
+- [x] `session.rollback()` discards staged (not yet flushed) changes
+- [x] No MongoDB transaction dependency (works on standalone)
+- [x] `session.add_all([...])` works
+- [x] All known bugs in `_commit` and `__setattr__` tracking are fixed
+- [x] All tests pass under the new API
+- [ ] `update()` and `delete()` statement builders work via `session.execute()` (Phase 3)
+- [ ] Migration guide from v0.2.0 is written (Phase 4)
+
+## Design Decisions
+
+### No multi-document transaction support
+
+MongoDB transactions require a replica set or mongos.  Because `mongotic`
+targets both standalone dev instances and production replica sets, we do
+**not** wrap writes in MongoDB transactions.
+
+Consequences:
+
+- Each individual document write is atomic (guaranteed by MongoDB).
+- **Cross-document atomicity is not guaranteed** — if you need all-or-nothing
+  across multiple documents, run your own replica set and manage sessions
+  manually via pymongo.
+- `flush()` writes staged ops immediately to MongoDB.  After `flush()` the
+  writes are **persisted** — they cannot be undone by `rollback()`.
+- `rollback()` discards only *staged but not yet flushed* changes.
+- `commit()` is an alias for `flush()` (kept for SA v2 API familiarity).
+
+This decision may be revisited in a future version.
 
 ## New API Contract
 
@@ -68,10 +91,10 @@ with Session() as session:
     # Write
     session.add(User(name="Alice", age=25))
     session.add_all([User(name="Bob"), User(name="Carol")])
-    session.flush()    # write to DB, _id available, transaction still open
-    session.commit()   # flush + commit
+    session.flush()    # write staged ops to DB immediately; _id is available after
+    session.commit()   # alias for flush()
 
-    # Rollback
+    # Discard staged (not yet flushed) changes
     session.rollback()
 
     # Bulk
