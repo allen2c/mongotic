@@ -1,4 +1,7 @@
-from typing import Any, Dict, List, Optional, Protocol, Text, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Generic, List, Optional, Protocol, Text, Tuple, Type, TypeVar
+
+if TYPE_CHECKING:
+    from mongotic.query import Select
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
@@ -9,13 +12,15 @@ from mongotic.model import (
     MongoBaseModel,
 )
 
+_T = TypeVar("_T", bound="MongoBaseModel")
 
-class ScalarResult:
+
+class ScalarResult(Generic[_T]):
     def __init__(
         self,
         collection: Any,
         stmt: Any,
-        model: Type["MongoBaseModel"],
+        model: Type[_T],
         session: Any,
     ):
         self._collection = collection
@@ -48,23 +53,23 @@ class ScalarResult:
 
         return cursor
 
-    def _hydrate(self, doc_raw: Dict) -> "MongoBaseModel":
+    def _hydrate(self, doc_raw: Dict) -> _T:
         obj = self._model(**doc_raw)
         obj._id = str(doc_raw["_id"])
         obj._session = self._session
-        return obj
+        return obj  # type: ignore[return-value]
 
-    def all(self) -> List["MongoBaseModel"]:
+    def all(self) -> List[_T]:
         return [self._hydrate(doc) for doc in self._build_cursor()]
 
-    def first(self) -> Optional["MongoBaseModel"]:
+    def first(self) -> Optional[_T]:
         from mongotic.model import ModelFieldOperation
 
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         doc = self._collection.find_one(filter_body)
         return self._hydrate(doc) if doc else None
 
-    def one(self) -> "MongoBaseModel":
+    def one(self) -> _T:
         cursor = self._build_cursor()
         cursor = cursor.limit(2)
         docs = list(cursor)
@@ -74,7 +79,7 @@ class ScalarResult:
             raise MultipleResultsFound("Expected one result, got multiple")
         return self._hydrate(docs[0])
 
-    def one_or_none(self) -> Optional["MongoBaseModel"]:
+    def one_or_none(self) -> Optional[_T]:
         cursor = self._build_cursor()
         cursor = cursor.limit(2)
         docs = list(cursor)
@@ -105,13 +110,11 @@ class Session(Protocol):
 
     def __init__(self, **kwargs: Any): ...
 
-    def scalars(self, stmt: Any) -> "ScalarResult": ...
+    def scalars(self, stmt: "Select[_T]") -> "ScalarResult[_T]": ...
 
     def execute(self, stmt: Any) -> int: ...
 
-    def get(
-        self, model: Type["MongoBaseModel"], id: Text
-    ) -> Optional["MongoBaseModel"]: ...
+    def get(self, model: Type[_T], id: Text) -> Optional[_T]: ...
 
     def add(self, instance: "MongoBaseModel") -> None: ...
 
@@ -144,7 +147,7 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
 
         # ── querying ────────────────────────────────────────────────────────
 
-        def scalars(self, stmt: Any) -> "ScalarResult":
+        def scalars(self, stmt: "Select[_T]") -> "ScalarResult[_T]":
             from mongotic.query import Select
 
             if not isinstance(stmt, Select):
@@ -178,9 +181,7 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
             else:
                 raise TypeError(f"execute() expects Update or Delete, got {type(stmt)}")
 
-        def get(
-            self, model: Type["MongoBaseModel"], id: Text
-        ) -> Optional["MongoBaseModel"]:
+        def get(self, model: Type[_T], id: Text) -> Optional[_T]:
             collection = self.engine[model.__databasename__][model.__tablename__]
             doc = collection.find_one({"_id": ObjectId(id)})
             if doc is None:
@@ -188,7 +189,7 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
             obj = model(**doc)
             obj._id = str(doc["_id"])
             obj._session = self
-            return obj
+            return obj  # type: ignore[return-value]
 
         # ── writing ─────────────────────────────────────────────────────────
 

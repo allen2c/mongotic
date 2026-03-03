@@ -1,8 +1,7 @@
 from datetime import datetime
 from typing import Optional, Text
 
-from pyassorted.datetime import aware_datetime_now
-from pyassorted.string import rand_str
+from tests.helpers import rand_str, utc_now
 from pydantic import Field
 from pymongo import MongoClient
 
@@ -24,8 +23,8 @@ class User(MongoBaseModel):
     email: Text = Field(...)
     company: Optional[Text] = Field(None, max_length=50)
     age: Optional[int] = Field(None, ge=0, le=200)
-    created_at: Optional[datetime] = Field(..., default_factory=aware_datetime_now)
-    updated_at: Optional[datetime] = Field(..., default_factory=aware_datetime_now)
+    created_at: Optional[datetime] = Field(..., default_factory=utc_now)
+    updated_at: Optional[datetime] = Field(..., default_factory=utc_now)
 
 
 def test_init_documents(mongo_engine: "MongoClient"):

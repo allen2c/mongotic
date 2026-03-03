@@ -160,7 +160,7 @@ class MongoBaseModelMeta(_model_construction.ModelMetaclass):
         try:
             return super().__getattr__(item)
         except AttributeError as e:
-            if item in cls.__dict__["__annotations__"]:
+            if item in cls.__dict__.get("__annotations__", {}):
                 return ModelField(field_name=item, model_class=cls)
             else:
                 raise e
