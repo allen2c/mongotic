@@ -1,5 +1,6 @@
-from typing import Any, Optional, Text
+from typing import Any, MutableMapping, Optional, Text, Type
 
+from bson.codec_options import TypeRegistry
 from pymongo import MongoClient
 
 from .exceptions import MultipleResultsFound, NotFound
@@ -21,11 +22,11 @@ __all__ = [
 def create_engine(
     host: Optional[Text] = None,
     port: Optional[int] = None,
-    document_class: Optional[Text] = None,
+    document_class: Optional[Type[MutableMapping]] = None,
     tz_aware: Optional[bool] = None,
     connect: Optional[bool] = None,
-    type_registry: Optional[Text] = None,
-    **kwargs: Any
+    type_registry: Optional[TypeRegistry] = None,
+    **kwargs: Any,
 ) -> MongoClient:
     engine = MongoClient(
         host=host,
