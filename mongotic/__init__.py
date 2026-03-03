@@ -2,9 +2,20 @@ from typing import Any, Optional, Text
 
 from pymongo import MongoClient
 
+from .exceptions import MultipleResultsFound, NotFound
+from .query import delete, select, update
 from .version import VERSION
 
 __version__ = VERSION
+
+__all__ = [
+    "create_engine",
+    "select",
+    "update",
+    "delete",
+    "NotFound",
+    "MultipleResultsFound",
+]
 
 
 def create_engine(

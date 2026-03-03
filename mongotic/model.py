@@ -41,6 +41,23 @@ class Operator(Enum):
             raise NotImplementedError
 
 
+class SortDirection(Enum):
+    ASC = 1
+    DESC = -1
+
+
+class ModelFieldSort(object):
+    def __init__(self, model_field: "ModelField", direction: SortDirection):
+        self.model_field = model_field
+        self.direction = direction
+
+    def __repr__(self) -> Text:
+        return (
+            f"<ModelFieldSort(FieldName={self.model_field.field_name}, "
+            f"Direction={self.direction.name})>"
+        )
+
+
 class ModelFieldOperation(object):
     def __init__(self, model_field: "ModelField", operation: Operator, value: Any):
         self.model_field = model_field
@@ -134,6 +151,9 @@ class ModelField(object):
             model_field=self, operation=Operator.NOT_IN, value=other
         )
 
+    def __neg__(self) -> "ModelFieldSort":
+        return ModelFieldSort(model_field=self, direction=SortDirection.DESC)
+
 
 class MongoBaseModelMeta(_model_construction.ModelMetaclass):
     def __getattr__(cls, item: Text):
@@ -156,4 +176,4 @@ class MongoBaseModel(BaseModel, metaclass=MongoBaseModelMeta):
     def __setattr__(self, name: Text, value: Any) -> None:
         super().__setattr__(name, value)
         if self._session is not None and name not in ["_id", "_session"]:
-            self._session._update_instances.append(tuple([self, name, value]))
+            self._session._update_instances[(id(self), name)] = (self, name, value)

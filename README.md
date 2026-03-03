@@ -1,20 +1,24 @@
 # mongotic
 
-The concept of MongoDB, SQLAlchemy, and Pydantic combined together in one simple and effective solution. It enables you to use SQLAlchemy query syntax with MongoDB, and allows you to define your data models using Pydantic.
+The concept of MongoDB, SQLAlchemy, and Pydantic combined together in one simple and effective solution. It enables you to use SQLAlchemy v2 query syntax with MongoDB, and allows you to define your data models using Pydantic.
+
+**Documentation:** [https://allen2c.github.io/mongotic/](https://allen2c.github.io/mongotic/)
+
+> **Project management:** Issues and epics are tracked with [PLANK](https://github.com/allen2c/PLANK) under `.plank/`.
 
 ## Overview
 
-The `mongotic` library is designed to make working with MongoDB as seamless as possible by using familiar tools and patterns from the SQLAlchemy and Pydantic ecosystems. It provides a consistent and expressive way to interact with MongoDB collections, and utilizes Pydantic for validation and data definition.
+The `mongotic` library is designed to make working with MongoDB as seamless as possible by using familiar tools and patterns from the SQLAlchemy and Pydantic ecosystems. It provides a consistent and expressive way to interact with MongoDB collections, and utilises Pydantic for validation and data definition.
 
 ## Features
 
-- **Easy integration**: Use the familiar SQLAlchemy ORM patterns with MongoDB.
-- **Data Validation**: Utilize Pydantic's powerful schema definition for data validation and serialization.
+- **SQLAlchemy v2 API**: `select()`, `session.scalars()`, `ScalarResult` — familiar patterns without a SQL database.
+- **Bulk Operations**: `update()` and `delete()` statement builders via `session.execute()`.
+- **Data Validation**: Utilise Pydantic's powerful schema definition for data validation and serialisation.
 - **Type Checking**: Benefit from type checking and autocomplete in IDEs due to static type definitions.
+- **Works on standalone MongoDB**: No replica set required — no multi-document transaction dependency.
 
 ## Installation
-
-You can install the package from your preferred package manager. For instance:
 
 ```bash
 pip install mongotic
@@ -22,16 +26,15 @@ pip install mongotic
 
 ## Usage
 
-Here's a simple example to help you get started with `mongotic`. This example covers basic operations like adding, querying, updating, and deleting documents in a MongoDB collection.
+> **v0.3.0 breaking change**: `session.query()` has been removed. Use `select()` + `session.scalars()` instead.
 
 ```python
 from typing import Optional, Text
 
 from pydantic import Field
-from pymongo import MongoClient
 
+from mongotic import MultipleResultsFound, NotFound, create_engine, delete, select, update
 from mongotic.model import MongoBaseModel
-from mongotic.orm import Session as SessionType
 from mongotic.orm import sessionmaker
 
 
@@ -45,72 +48,92 @@ class User(MongoBaseModel):
     age: Optional[int] = Field(None, ge=0, le=200)
 
 
-def add_operation(session: "SessionType"):
-    new_user = User(
-        name="Allen Chou", email="allen.chou@example.com", company="A company", age=30
-    )
+engine = create_engine("mongodb://localhost:27017")
+Session = sessionmaker(bind=engine)
+
+# ── Add ──────────────────────────────────────────────────────────────────────
+session = Session()
+session.add(User(name="Allen Chou", email="allen@example.com", company="Acme", age=30))
+session.add_all([
+    User(name="Bob", email="bob@example.com", company="Acme", age=25),
+    User(name="Carol", email="carol@example.com", company="Acme", age=28),
+])
+session.commit()
+
+# ── Query ────────────────────────────────────────────────────────────────────
+session = Session()
+
+# Fetch all / first
+users = session.scalars(select(User)).all()
+users = session.scalars(select(User).where(User.age > 18)).all()
+users = session.scalars(
+    select(User)
+    .where(User.company == "Acme")
+    .order_by(-User.age)      # descending; use User.age for ascending
+    .limit(10)
+    .offset(0)
+).all()
+
+user = session.scalars(select(User).where(User.email == "allen@example.com")).first()
+user = session.get(User, "<object_id_string>")   # PK lookup; returns None if not found
+
+# Strict single-result fetch
+try:
+    user = session.scalars(select(User).where(User.email == "allen@example.com")).one()
+    # raises NotFound if 0 results; raises MultipleResultsFound if 2+ results
+except NotFound:
+    ...
+except MultipleResultsFound:
+    ...
+
+user = session.scalars(
+    select(User).where(User.email == "allen@example.com")
+).one_or_none()
+# returns None if 0 results; raises MultipleResultsFound if 2+ results
+
+# Count and existence check
+count = session.scalars(select(User).where(User.company == "Acme")).count()
+exists = session.scalars(select(User).where(User.company == "Acme")).exists()
+
+# ── Update ───────────────────────────────────────────────────────────────────
+session = Session()
+user = session.scalars(select(User).where(User.email == "allen@example.com")).first()
+user.email = "new.allen@example.com"   # tracked automatically
+session.commit()
+
+# ── Delete ───────────────────────────────────────────────────────────────────
+session = Session()
+user = session.scalars(select(User).where(User.email == "new.allen@example.com")).first()
+session.delete(user)
+session.commit()
+
+# ── Bulk Operations ──────────────────────────────────────────────────────────
+session = Session()
+# Bulk update: returns number of modified documents
+modified = session.execute(
+    update(User).where(User.company == "Acme").values(company="Acme Corp")
+)
+# Bulk delete: returns number of deleted documents
+deleted = session.execute(
+    delete(User).where(User.age < 18)
+)
+
+# ── Context manager + flush ──────────────────────────────────────────────────
+with Session() as session:
+    new_user = User(name="Dave", email="dave@example.com", age=35)
     session.add(new_user)
-    session.commit()
-
-
-def query_operation(session: "SessionType"):
-    user = session.query(User).first()
-    assert user
-
-    users = session.query(User).all()
-    assert len(users) > 0
-
-    users = session.query(User).filter(User.email == "allen.chou@example.com").all()
-    assert len(users) > 0
-
-    users = session.query(User).filter(email="allen.chou@example.com").all()
-    assert len(users) > 0
-
-    users = session.query(User).filter_by(email="allen.chou@example.com").all()
-    assert len(users) > 0
-
-    users = session.query(User).filter(User.company == "ERROR_COMPANY").all()
-    assert len(users) == 0
-
-
-def update_operation(session: "SessionType"):
-    alice = session.query(User).filter_by(email="allen.chou@example.com").first()
-
-    alice.email = "new.allen.chou@example.com"
-
-    session.commit()
-
-
-def delete_operation(session: "SessionType"):
-    user = session.query(User).filter_by(email="allen.chou@example.com").first()
-
-    session.delete(user)
-
-    session.commit()
-
-
-if __name__ == "__main__":
-    mongo_engine = MongoClient("mongodb://localhost:27017")
-    db = mongo_engine[User.__databasename__]
-    if User.__tablename__ not in db.list_collection_names():
-        db.create_collection(User.__tablename__)
-
-    Session = sessionmaker(bind=mongo_engine)
-    session = Session()
-
-    add_operation(session)
-    query_operation(session)
-    update_operation(session)
-    delete_operation(session)
+    session.flush()          # writes immediately; new_user._id is now available
+    print(new_user._id)
+    session.commit()         # alias for flush()
 ```
 
 ## Contributing
 
-TODO:
+TODO
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ## Support
 

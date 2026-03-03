@@ -1,0 +1,43 @@
+site_name: mongotic
+site_url: https://allen2c.github.io/mongotic/
+site_description: MongoDB + SQLAlchemy v2 + Pydantic — familiar query syntax for MongoDB.
+site_author: Allen Chou
+repo_url: https://github.com/allen2c/mongotic
+repo_name: allen2c/mongotic
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+    - content.code.annotate
+
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Querying: querying.md
+  - Session: session.md
+  - Migration Guide (v0.2 → v0.3): migration-v0.2-to-v0.3.md
+  - Design: design.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - tables

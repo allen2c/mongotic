@@ -1,234 +1,275 @@
-from typing import Any, List, Optional, Protocol, Text, Tuple, Type
+from typing import Any, Dict, List, Optional, Protocol, Text, Tuple, Type
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
-from pymongo.client_session import ClientSession
-from typing_extensions import ParamSpec
 
-from mongotic.exceptions import NotFound
+from mongotic.exceptions import MultipleResultsFound, NotFound
 from mongotic.model import (
     NOT_SET_SENTINEL,
-    ModelField,
-    ModelFieldOperation,
     MongoBaseModel,
 )
 
-P = ParamSpec("P")
 
-
-class QuerySet:
+class ScalarResult:
     def __init__(
         self,
-        orm_model: Type["MongoBaseModel"],
-        *args: Any,
-        engine: "MongoClient",
-        session: "Session",
-        **kwargs: Any
+        collection: Any,
+        stmt: Any,
+        model: Type["MongoBaseModel"],
+        session: Any,
     ):
-        self.orm_model = orm_model
-        self.engine = engine
-        self.session = session
+        self._collection = collection
+        self._stmt = stmt
+        self._model = model
+        self._session = session
 
-        if self.orm_model.__databasename__ is NOT_SET_SENTINEL:
-            raise ValueError("Database name is not set")
-        if self.orm_model.__tablename__ is NOT_SET_SENTINEL:
-            raise ValueError("Table name is not set")
+    def _build_cursor(self):
+        from pymongo import ASCENDING, DESCENDING
 
-        self._db_name: Text = self.orm_model.__databasename__
-        self._col_name: Text = self.orm_model.__tablename__
-        self._limit = 5
-        self._offset = 0
-        self._filters: List["ModelFieldOperation"] = []
+        from mongotic.model import ModelFieldOperation, SortDirection
 
-    def filter(
-        self, *model_field_operations: "ModelFieldOperation", **kwargs: Any
-    ) -> "QuerySet":
-        if not model_field_operations and not kwargs:
-            raise ValueError("No filter is provided")
+        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
+        cursor = self._collection.find(filter_body)
 
-        self._filters.extend(model_field_operations)
+        if self._stmt._sort:
+            sort_list = [
+                (
+                    s.model_field.field_name,
+                    ASCENDING if s.direction == SortDirection.ASC else DESCENDING,
+                )
+                for s in self._stmt._sort
+            ]
+            cursor = cursor.sort(sort_list)
 
-        for k, v in kwargs.items():
-            self._filters.append(
-                ModelField(field_name=k, model_class=self.orm_model) == v
-            )
+        if self._stmt._offset is not None:
+            cursor = cursor.skip(self._stmt._offset)
+        if self._stmt._limit is not None:
+            cursor = cursor.limit(self._stmt._limit)
 
-        return self
+        return cursor
 
-    def filter_by(self, **kwargs: Any) -> "QuerySet":
-        for k, v in kwargs.items():
-            self._filters.append(
-                ModelField(field_name=k, model_class=self.orm_model) == v
-            )
-        return self
+    def _hydrate(self, doc_raw: Dict) -> "MongoBaseModel":
+        obj = self._model(**doc_raw)
+        obj._id = str(doc_raw["_id"])
+        obj._session = self._session
+        return obj
 
-    def limit(self, value: int, *args: Any, **kwargs: Any) -> "QuerySet":
-        if value < 0:
-            raise ValueError("Limit value must be positive")
-        self._limit = value
-        return self
+    def all(self) -> List["MongoBaseModel"]:
+        return [self._hydrate(doc) for doc in self._build_cursor()]
 
-    def offset(self, value: int, *args: Any, **kwargs: Any) -> "QuerySet":
-        if value < 0:
-            raise ValueError("Offset value must be positive")
-        self._offset = value
-        return self
+    def first(self) -> Optional["MongoBaseModel"]:
+        from mongotic.model import ModelFieldOperation
 
-    def first(self, *args: Any, **kwargs: Any) -> "MongoBaseModel":
-        collection = self.engine[self._db_name][self._col_name]
+        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
+        doc = self._collection.find_one(filter_body)
+        return self._hydrate(doc) if doc else None
 
-        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._filters)
-        doc_raw = collection.find_one(filter=filter_body)
-        if not doc_raw:
-            raise NotFound
+    def one(self) -> "MongoBaseModel":
+        cursor = self._build_cursor()
+        cursor = cursor.limit(2)
+        docs = list(cursor)
+        if len(docs) == 0:
+            raise NotFound("No result found")
+        if len(docs) > 1:
+            raise MultipleResultsFound("Expected one result, got multiple")
+        return self._hydrate(docs[0])
 
-        doc = self.orm_model(**doc_raw)
-        doc._id = str(doc_raw["_id"])
-        doc._session = self.session
-        return doc
+    def one_or_none(self) -> Optional["MongoBaseModel"]:
+        cursor = self._build_cursor()
+        cursor = cursor.limit(2)
+        docs = list(cursor)
+        if len(docs) == 0:
+            return None
+        if len(docs) > 1:
+            raise MultipleResultsFound("Expected one result, got multiple")
+        return self._hydrate(docs[0])
 
-    def all(self, *args: Any, **kwargs: Any) -> List["MongoBaseModel"]:
-        docs: List["MongoBaseModel"] = []
+    def count(self) -> int:
+        from mongotic.model import ModelFieldOperation
 
-        collection = self.engine[self._db_name][self._col_name]
+        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
+        return self._collection.count_documents(filter_body)
 
-        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._filters)
+    def exists(self) -> bool:
+        from mongotic.model import ModelFieldOperation
 
-        for _doc in collection.find(filter_body).skip(self._offset).limit(self._limit):
-            _doc_orm = self.orm_model(**_doc)
-            _doc_orm._id = str(_doc["_id"])
-            _doc_orm._session = self.session
-            docs.append(_doc_orm)
-
-        return docs
+        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
+        return self._collection.count_documents(filter_body, limit=1) > 0
 
 
 class Session(Protocol):
     engine: "MongoClient"
-    client_session: Optional["ClientSession"]
     _add_instances: List["MongoBaseModel"]
-    _update_instances: List[Tuple["MongoBaseModel", Text, Any]]
+    _update_instances: Dict[Tuple[int, Text], Tuple["MongoBaseModel", Text, Any]]
+    _delete_instances: List["MongoBaseModel"]
 
-    def __init__(self, bind_engine: MongoClient, **kwargs: Any):
-        ...
+    def __init__(self, **kwargs: Any): ...
 
-    def query(
-        self, orm_model: Type["MongoBaseModel"], *args: Any, **kwargs: Any
-    ) -> QuerySet:
-        ...
+    def scalars(self, stmt: Any) -> "ScalarResult": ...
 
-    def add(self, instance: "MongoBaseModel", *args: Any, **kwargs: Any) -> None:
-        ...
+    def execute(self, stmt: Any) -> int: ...
 
-    def delete(self, instance: "MongoBaseModel", *args: Any, **kwargs: Any) -> None:
-        ...
+    def get(
+        self, model: Type["MongoBaseModel"], id: Text
+    ) -> Optional["MongoBaseModel"]: ...
 
-    def commit(self, *args: Any, **kwargs: Any) -> None:
-        ...
+    def add(self, instance: "MongoBaseModel") -> None: ...
 
-    def __enter__(self):
-        ...
+    def add_all(self, instances: List["MongoBaseModel"]) -> None: ...
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        ...
+    def delete(self, instance: "MongoBaseModel") -> None: ...
+
+    def flush(self) -> None: ...
+
+    def commit(self) -> None: ...
+
+    def rollback(self) -> None: ...
+
+    def close(self) -> None: ...
+
+    def __enter__(self) -> "Session": ...
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None: ...
 
 
 def sessionmaker(bind: "MongoClient") -> Type[Session]:
     class _Session:
-        def __init__(self, *args, **kwargs: Any):
+        def __init__(self, *args: Any, **kwargs: Any):
             self.engine = bind
-
-            self.client_session: Optional["ClientSession"] = None
-
             self._add_instances: List["MongoBaseModel"] = []
-            self._update_instances: List[Tuple["MongoBaseModel", Text, Any]] = []
+            self._update_instances: Dict[
+                Tuple[int, Text], Tuple["MongoBaseModel", Text, Any]
+            ] = {}
             self._delete_instances: List["MongoBaseModel"] = []
 
-        def query(
-            self, orm_model: Type["MongoBaseModel"], *args: Any, **kwargs: Any
-        ) -> QuerySet:
-            return QuerySet(
-                orm_model=orm_model, *args, engine=self.engine, session=self, **kwargs
+        # ── querying ────────────────────────────────────────────────────────
+
+        def scalars(self, stmt: Any) -> "ScalarResult":
+            from mongotic.query import Select
+
+            if not isinstance(stmt, Select):
+                raise TypeError(
+                    f"scalars() expects a Select statement, got {type(stmt)}"
+                )
+            collection = self.engine[stmt._model.__databasename__][
+                stmt._model.__tablename__
+            ]
+            return ScalarResult(
+                collection=collection,
+                stmt=stmt,
+                model=stmt._model,
+                session=self,
             )
 
-        def add(self, instance: "MongoBaseModel", *args: Any, **kwargs: Any) -> None:
+        def execute(self, stmt: Any) -> int:
+            from mongotic.model import ModelFieldOperation
+            from mongotic.query import Delete, Update
+
+            filter_body = ModelFieldOperation.to_mongo_filter(filters=stmt._filters)
+            collection = self.engine[stmt._model.__databasename__][
+                stmt._model.__tablename__
+            ]
+            if isinstance(stmt, Update):
+                result = collection.update_many(filter_body, {"$set": stmt._values})
+                return result.modified_count
+            elif isinstance(stmt, Delete):
+                result = collection.delete_many(filter_body)
+                return result.deleted_count
+            else:
+                raise TypeError(f"execute() expects Update or Delete, got {type(stmt)}")
+
+        def get(
+            self, model: Type["MongoBaseModel"], id: Text
+        ) -> Optional["MongoBaseModel"]:
+            collection = self.engine[model.__databasename__][model.__tablename__]
+            doc = collection.find_one({"_id": ObjectId(id)})
+            if doc is None:
+                return None
+            obj = model(**doc)
+            obj._id = str(doc["_id"])
+            obj._session = self
+            return obj
+
+        # ── writing ─────────────────────────────────────────────────────────
+
+        def add(self, instance: "MongoBaseModel") -> None:
             if instance.__databasename__ is NOT_SET_SENTINEL:
                 raise ValueError("Database name is not set")
             if instance.__tablename__ is NOT_SET_SENTINEL:
                 raise ValueError("Table name is not set")
-
             self._add_instances.append(instance)
 
-        def delete(self, instance: "MongoBaseModel", *args: Any, **kwargs: Any) -> None:
+        def add_all(self, instances: List["MongoBaseModel"]) -> None:
+            for instance in instances:
+                self.add(instance)
+
+        def delete(self, instance: "MongoBaseModel") -> None:
             if instance.__databasename__ is NOT_SET_SENTINEL:
                 raise ValueError("Database name is not set")
             if instance.__tablename__ is NOT_SET_SENTINEL:
                 raise ValueError("Table name is not set")
-
             self._delete_instances.append(instance)
 
-        def commit(self, *args: Any, **kwargs: Any) -> None:
-            if self.client_session is None:
-                with self:
-                    assert (
-                        self.client_session is not None
-                    ), "Client session should be created in Session.__enter__"
-                    with self.client_session.start_transaction():
-                        self._commit(
-                            pymongo_client_session=self.client_session,
-                            engine=self.engine,
-                            add_instances=self._add_instances,
-                            update_instances=self._update_instances,
-                        )
+        # ── write control (no transactions) ──────────────────────────────────
 
-            else:
-                with self.client_session.start_transaction():
-                    self._commit(
-                        pymongo_client_session=self.client_session,
-                        engine=self.engine,
-                        add_instances=self._add_instances,
-                        update_instances=self._update_instances,
-                    )
+        def flush(self) -> None:
+            """Write all staged ops to MongoDB immediately. Each write is document-atomic.
+            After flush, changes are persisted and cannot be undone by rollback()."""
+            self._execute_staged()
 
-            self._add_instances = []
-            self._update_instances = []
-            self._delete_instances = []
+        def commit(self) -> None:
+            """Alias for flush(). Kept for SA v2 API familiarity."""
+            self._execute_staged()
 
-        def __enter__(self):
-            self.client_session = self.engine.start_session()
+        def rollback(self) -> None:
+            """Discard staged (not yet flushed) changes.
+            Cannot undo writes that have already been flushed."""
+            self._clear_staging()
+
+        def close(self) -> None:
+            """Discard any un-flushed staged changes."""
+            self._clear_staging()
+
+        # ── context manager ──────────────────────────────────────────────────
+
+        def __enter__(self) -> "_Session":
             return self
 
-        def __exit__(self, exc_type, exc_value, traceback):
-            self.client_session.end_session()
-            self.client_session = None
+        def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+            self.close()
 
-        def _commit(
-            self,
-            pymongo_client_session: "ClientSession",
-            engine: "MongoClient",
-            add_instances: List["MongoBaseModel"],
-            update_instances: List[Tuple["MongoBaseModel", Text, Any]],
-        ) -> None:
-            for _add_instance in add_instances:
-                _db = engine[_add_instance.__databasename__]
-                _col = _db[_add_instance.__tablename__]
-                _insert_one_result = _col.insert_one(
-                    _add_instance.model_dump(), session=pymongo_client_session
-                )
-                _add_instance._id = str(_insert_one_result.inserted_id)
+        # ── internals ────────────────────────────────────────────────────────
+
+        def _execute_staged(self) -> None:
+            engine = self.engine
+
+            for _add_instance in self._add_instances:
+                _col = engine[_add_instance.__databasename__][
+                    _add_instance.__tablename__
+                ]
+                result = _col.insert_one(_add_instance.model_dump())
+                _add_instance._id = str(result.inserted_id)
                 _add_instance._session = self
 
-            for _update_instance in self._update_instances:
+            for _update_instance in self._update_instances.values():
                 _instance, _field_to_update, _new_value = _update_instance
-                _db = engine[_instance.__databasename__]
-                _col = _db[_instance.__tablename__]
+                _col = engine[_instance.__databasename__][_instance.__tablename__]
                 _col.update_one(
-                    {"_id": _instance._id}, {"$set": {_field_to_update: _new_value}}
+                    {"_id": ObjectId(_instance._id)},
+                    {"$set": {_field_to_update: _new_value}},
                 )
 
             for _delete_instance in self._delete_instances:
-                _db = engine[_delete_instance.__databasename__]
-                _col = _db[_delete_instance.__tablename__]
+                _col = engine[_delete_instance.__databasename__][
+                    _delete_instance.__tablename__
+                ]
                 _col.delete_one({"_id": ObjectId(_delete_instance._id)})
+
+            self._clear_staging()
+
+        def _clear_staging(self) -> None:
+            self._add_instances = []
+            self._update_instances = {}
+            self._delete_instances = []
 
     return _Session
