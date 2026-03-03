@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Text, Type, Union
+from typing import Any, Dict, Generic, List, Optional, Text, Type, TypeVar, Union
 
 from mongotic.model import (
     ModelFieldOperation,
@@ -7,20 +7,22 @@ from mongotic.model import (
     SortDirection,
 )
 
+_T = TypeVar("_T", bound="MongoBaseModel")
 
-class Select:
-    def __init__(self, orm_model: Type["MongoBaseModel"]):
+
+class Select(Generic[_T]):
+    def __init__(self, orm_model: Type[_T]):
         self._model = orm_model
         self._filters: List["ModelFieldOperation"] = []
         self._sort: List["ModelFieldSort"] = []
         self._limit: Optional[int] = None
         self._offset: Optional[int] = None
 
-    def where(self, *model_field_operations: "ModelFieldOperation") -> "Select":
+    def where(self, *model_field_operations: "ModelFieldOperation") -> "Select[_T]":
         self._filters.extend(model_field_operations)
         return self
 
-    def order_by(self, *fields: Union["ModelFieldSort", Any]) -> "Select":
+    def order_by(self, *fields: Union["ModelFieldSort", Any]) -> "Select[_T]":
         from mongotic.model import ModelField
 
         for field in fields:
@@ -36,13 +38,13 @@ class Select:
                 )
         return self
 
-    def limit(self, value: int) -> "Select":
+    def limit(self, value: int) -> "Select[_T]":
         if value < 0:
             raise ValueError("Limit value must be non-negative")
         self._limit = value
         return self
 
-    def offset(self, value: int) -> "Select":
+    def offset(self, value: int) -> "Select[_T]":
         if value < 0:
             raise ValueError("Offset value must be non-negative")
         self._offset = value
@@ -74,7 +76,7 @@ class Delete:
         return self
 
 
-def select(orm_model: Type["MongoBaseModel"]) -> Select:
+def select(orm_model: Type[_T]) -> Select[_T]:
     return Select(orm_model=orm_model)
 
 
