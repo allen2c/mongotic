@@ -11,6 +11,7 @@ The `mongotic` library is designed to make working with MongoDB as seamless as p
 ## Features
 
 - **SQLAlchemy v2 API**: `select()`, `session.scalars()`, `ScalarResult` — familiar patterns without a SQL database.
+- **Bulk Operations**: `update()` and `delete()` statement builders via `session.execute()`.
 - **Data Validation**: Utilise Pydantic's powerful schema definition for data validation and serialisation.
 - **Type Checking**: Benefit from type checking and autocomplete in IDEs due to static type definitions.
 - **Works on standalone MongoDB**: No replica set required — no multi-document transaction dependency.
@@ -30,7 +31,7 @@ from typing import Optional, Text
 
 from pydantic import Field
 
-from mongotic import MultipleResultsFound, NotFound, create_engine, select
+from mongotic import MultipleResultsFound, NotFound, create_engine, delete, select, update
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 
@@ -103,6 +104,17 @@ session = Session()
 user = session.scalars(select(User).where(User.email == "new.allen@example.com")).first()
 session.delete(user)
 session.commit()
+
+# ── Bulk Operations ──────────────────────────────────────────────────────────
+session = Session()
+# Bulk update: returns number of modified documents
+modified = session.execute(
+    update(User).where(User.company == "Acme").values(company="Acme Corp")
+)
+# Bulk delete: returns number of deleted documents
+deleted = session.execute(
+    delete(User).where(User.age < 18)
+)
 
 # ── Context manager + flush ──────────────────────────────────────────────────
 with Session() as session:

@@ -3,7 +3,7 @@ id: EPIC-001
 title: "v0.3.0 - SQLAlchemy v2 Alignment (Breaking Change)"
 status: in-progress
 created: 2026-03-03
-updated: 2026-03-03  # Phase 0, 1 & 2 complete
+updated: 2026-03-03  # Phase 0, 1, 2 & 3 complete
 issues:
   - MGT-001
   - MGT-012
@@ -42,7 +42,7 @@ v0.3.0 is considered complete when:
 - [x] `session.add_all([...])` works
 - [x] All known bugs in `_commit` and `__setattr__` tracking are fixed
 - [x] All tests pass under the new API
-- [ ] `update()` and `delete()` statement builders work via `session.execute()` (Phase 3)
+- [x] `update()` and `delete()` statement builders work via `session.execute()` (Phase 3)
 - [ ] Migration guide from v0.2.0 is written (Phase 4)
 
 ## Design Decisions

@@ -7,7 +7,7 @@ from pyassorted.string import rand_str
 from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import MultipleResultsFound, NotFound, select
+from mongotic import MultipleResultsFound, NotFound, delete, select, update
 from mongotic.model import MongoBaseModel
 from mongotic.orm import ScalarResult, sessionmaker
 
@@ -203,6 +203,53 @@ def test_scalars_one_or_none(mongo_engine: "MongoClient"):
     # 2+ results → raises MultipleResultsFound
     with pytest.raises(MultipleResultsFound):
         session.scalars(select(User).where(User.company == test_company)).one_or_none()
+
+
+def test_execute_bulk_update(mongo_engine: "MongoClient"):
+    Session = sessionmaker(bind=mongo_engine)
+    session = Session()
+
+    # Ensure there are users to update
+    count = session.scalars(select(User).where(User.company == test_company)).count()
+    assert count > 0
+
+    stmt = update(User).where(User.company == test_company).values(age=99)
+    modified = session.execute(stmt)
+    assert modified > 0
+
+    # Verify all matching documents now have age=99
+    users = session.scalars(
+        select(User).where(User.company == test_company, User.age == 99)
+    ).all()
+    assert len(users) == count
+
+
+def test_execute_bulk_delete(mongo_engine: "MongoClient"):
+    Session = sessionmaker(bind=mongo_engine)
+    session = Session()
+
+    bulk_company = f"bulk_delete_{rand_str(8)}"
+    session.add_all(
+        [
+            User(name="BulkA", email="bulka@example.com", company=bulk_company, age=10),
+            User(name="BulkB", email="bulkb@example.com", company=bulk_company, age=20),
+        ]
+    )
+    session.commit()
+
+    count_before = session.scalars(
+        select(User).where(User.company == bulk_company)
+    ).count()
+    assert count_before == 2
+
+    stmt = delete(User).where(User.company == bulk_company)
+    deleted = session.execute(stmt)
+    assert deleted == 2
+
+    count_after = session.scalars(
+        select(User).where(User.company == bulk_company)
+    ).count()
+    assert count_after == 0
 
 
 def test_delete_operation(mongo_engine: "MongoClient"):
