@@ -21,7 +21,9 @@ from pymongo import MongoClient
 from mongotic.exceptions import MultipleResultsFound, NotFound
 from mongotic.model import (
     NOT_SET_SENTINEL,
+    ModelFieldOperation,
     MongoBaseModel,
+    SortDirection,
 )
 
 _T = TypeVar("_T", bound="MongoBaseModel")
@@ -42,8 +44,6 @@ class ScalarResult(Generic[_T]):
 
     def _build_cursor(self):
         from pymongo import ASCENDING, DESCENDING
-
-        from mongotic.model import ModelFieldOperation, SortDirection
 
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         cursor = self._collection.find(filter_body)
@@ -72,14 +72,19 @@ class ScalarResult(Generic[_T]):
         return obj  # type: ignore[return-value]
 
     def all(self) -> List[_T]:
+        if self._stmt._distinct_field is not None:
+            filter_body = ModelFieldOperation.to_mongo_filter(
+                filters=self._stmt._filters
+            )
+            return self._collection.distinct(  # type: ignore[return-value]
+                self._stmt._distinct_field.field_name, filter_body
+            )
         return [self._hydrate(doc) for doc in self._build_cursor()]
 
     def first(self) -> Optional[_T]:
-        from mongotic.model import ModelFieldOperation
-
-        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
-        doc = self._collection.find_one(filter_body)
-        return self._hydrate(doc) if doc else None
+        cursor = self._build_cursor().limit(1)
+        docs = list(cursor)
+        return self._hydrate(docs[0]) if docs else None
 
     def one(self) -> _T:
         cursor = self._build_cursor()
@@ -102,14 +107,10 @@ class ScalarResult(Generic[_T]):
         return self._hydrate(docs[0])
 
     def count(self) -> int:
-        from mongotic.model import ModelFieldOperation
-
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         return self._collection.count_documents(filter_body)
 
     def exists(self) -> bool:
-        from mongotic.model import ModelFieldOperation
-
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         return self._collection.count_documents(filter_body, limit=1) > 0
 
@@ -177,7 +178,6 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
             )
 
         def execute(self, stmt: Any) -> int:
-            from mongotic.model import ModelFieldOperation
             from mongotic.query import Delete, Update
 
             filter_body = ModelFieldOperation.to_mongo_filter(filters=stmt._filters)

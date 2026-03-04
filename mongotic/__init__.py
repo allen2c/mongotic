@@ -4,6 +4,7 @@ from bson.codec_options import TypeRegistry
 from pymongo import MongoClient
 
 from .exceptions import MultipleResultsFound, NotFound
+from .model import and_, not_, or_
 from .query import delete, select, update
 from .version import VERSION
 
@@ -14,6 +15,9 @@ __all__ = [
     "select",
     "update",
     "delete",
+    "or_",
+    "and_",
+    "not_",
     "NotFound",
     "MultipleResultsFound",
 ]

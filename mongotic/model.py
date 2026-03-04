@@ -1,5 +1,7 @@
+import re
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Text, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Text, Type, Union
 
 from pydantic import BaseModel, PrivateAttr
 from pydantic._internal import _model_construction
@@ -19,6 +21,8 @@ class Operator(Enum):
     LESS_THAN_EQUAL = auto()
     IN = auto()
     NOT_IN = auto()
+    BETWEEN = auto()
+    REGEX = auto()
 
     def __str__(self):
         if self == Operator.EQUAL:
@@ -37,8 +41,20 @@ class Operator(Enum):
             return "in"
         elif self == Operator.NOT_IN:
             return "not in"
+        elif self == Operator.BETWEEN:
+            return "between"
+        elif self == Operator.REGEX:
+            return "regex"
         else:
             raise NotImplementedError
+
+
+@dataclass
+class RegexValue:
+    """Holds a MongoDB ``$regex`` pattern and optional flags."""
+
+    pattern: Text
+    options: Text = ""
 
 
 class SortDirection(Enum):
@@ -71,38 +87,146 @@ class ModelFieldOperation(object):
             ")>"
         )
 
-    @classmethod
+    @staticmethod
     def to_mongo_filter(
-        cls, filters: List["ModelFieldOperation"], **kwargs
+        filters: "List[Union[ModelFieldOperation, CompoundFilter]]",
     ) -> Dict[Text, Any]:
         filter_dict: Dict[Text, Any] = {}
 
         for _filter in filters:
+            if isinstance(_filter, CompoundFilter):
+                cf_dict = _filter.to_mongo_filter()
+                for key, val in cf_dict.items():
+                    if (
+                        key in filter_dict
+                        and isinstance(filter_dict[key], dict)
+                        and isinstance(val, dict)
+                    ):
+                        filter_dict[key].update(val)
+                    else:
+                        filter_dict[key] = val
+                continue
+
             if _filter.model_field.field_name not in filter_dict:
                 filter_dict[_filter.model_field.field_name] = {}
 
             field_filter: Dict = filter_dict[_filter.model_field.field_name]
 
-            if _filter.operation == Operator.EQUAL:
-                field_filter.update({"$eq": _filter.value})
-            elif _filter.operation == Operator.NOT_EQUAL:
-                field_filter.update({"$ne": _filter.value})
-            elif _filter.operation == Operator.GREATER_THAN:
-                field_filter.update({"$gt": _filter.value})
-            elif _filter.operation == Operator.GREATER_THAN_EQUAL:
-                field_filter.update({"$gte": _filter.value})
-            elif _filter.operation == Operator.LESS_THAN:
-                field_filter.update({"$lt": _filter.value})
-            elif _filter.operation == Operator.LESS_THAN_EQUAL:
-                field_filter.update({"$lte": _filter.value})
-            elif _filter.operation == Operator.IN:
-                field_filter.update({"$in": _filter.value})
-            elif _filter.operation == Operator.NOT_IN:
-                field_filter.update({"$nin": _filter.value})
-            else:
-                raise NotImplementedError
+            field_filter.update(_op_to_expr(_filter))
 
         return filter_dict
+
+
+_OP_MAP: Dict[Operator, Text] = {
+    Operator.EQUAL: "$eq",
+    Operator.NOT_EQUAL: "$ne",
+    Operator.GREATER_THAN: "$gt",
+    Operator.GREATER_THAN_EQUAL: "$gte",
+    Operator.LESS_THAN: "$lt",
+    Operator.LESS_THAN_EQUAL: "$lte",
+    Operator.IN: "$in",
+    Operator.NOT_IN: "$nin",
+}
+
+
+def _op_to_expr(op: "ModelFieldOperation") -> Dict[Text, Any]:
+    """Return the MongoDB operator expression for one op (without the field name)."""
+    if op.operation in _OP_MAP:
+        return {_OP_MAP[op.operation]: op.value}
+    if op.operation == Operator.BETWEEN:
+        low, high = op.value
+        return {"$gte": low, "$lte": high}
+    if op.operation == Operator.REGEX:
+        expr: Dict[Text, Any] = {"$regex": op.value.pattern}
+        if op.value.options:
+            expr["$options"] = op.value.options
+        return expr
+    raise NotImplementedError(f"No MongoDB expression for operator {op.operation}")
+
+
+def _single_op_to_filter(op: "ModelFieldOperation") -> Dict[Text, Any]:
+    """Convert a single ModelFieldOperation to ``{field: {mongo_op: value}}``."""
+    return {op.model_field.field_name: _op_to_expr(op)}
+
+
+class CompoundFilter:
+    """Represents logical compound filters: $or, $and, $nor, or field-level $not."""
+
+    def __init__(
+        self,
+        op: Text,
+        children: "List[Union[ModelFieldOperation, CompoundFilter]]",
+    ):
+        self.op = op
+        self._children = children
+
+    def __repr__(self) -> Text:
+        return f"<CompoundFilter(op={self.op}, n_children={len(self._children)})>"
+
+    def to_mongo_filter(self) -> Dict[Text, Any]:
+        # Special case: field-level $not wrapping a single ModelFieldOperation
+        if self.op == "$not_field":
+            child = self._children[0]
+            assert isinstance(child, ModelFieldOperation)
+            return {child.model_field.field_name: {"$not": _op_to_expr(child)}}
+
+        child_filters: List[Dict[Text, Any]] = []
+        for child in self._children:
+            if isinstance(child, ModelFieldOperation):
+                child_filters.append(_single_op_to_filter(child))
+            else:
+                child_filters.append(child.to_mongo_filter())
+        return {self.op: child_filters}
+
+
+# Type alias for anything accepted in .where() / to_mongo_filter()
+FilterType = Union[ModelFieldOperation, CompoundFilter]
+
+
+def or_(*conditions: FilterType) -> CompoundFilter:
+    """Combine conditions with logical OR ($or)."""
+    return CompoundFilter(op="$or", children=list(conditions))
+
+
+def and_(*conditions: FilterType) -> CompoundFilter:
+    """Combine conditions with logical AND ($and)."""
+    return CompoundFilter(op="$and", children=list(conditions))
+
+
+def not_(condition: FilterType) -> CompoundFilter:
+    """Negate a condition.
+
+    - Single ModelFieldOperation  → field-level ``$not``
+    - CompoundFilter (or_)        → ``$nor`` with flattened children
+    - CompoundFilter (other)      → ``$nor`` wrapping the compound filter
+    """
+    if isinstance(condition, ModelFieldOperation):
+        return CompoundFilter(op="$not_field", children=[condition])
+    if isinstance(condition, CompoundFilter):
+        if condition.op == "$or":
+            # not_(or_(A, B)) == $nor: [A, B]
+            return CompoundFilter(op="$nor", children=condition._children)
+        # not_(and_(...)) or other nesting: wrap in single-element $nor
+        return CompoundFilter(op="$nor", children=[condition])
+    raise TypeError(
+        f"not_() expects ModelFieldOperation or CompoundFilter, got {type(condition)}"
+    )
+
+
+def _like_to_regex(pattern: Text) -> Text:
+    """Convert a SQL LIKE pattern to an anchored regex string.
+
+    ``%`` → ``.*``, ``_`` → ``.``, all other chars are ``re.escape``-d.
+    """
+    parts: List[Text] = []
+    for ch in pattern:
+        if ch == "%":
+            parts.append(".*")
+        elif ch == "_":
+            parts.append(".")
+        else:
+            parts.append(re.escape(ch))
+    return "^" + "".join(parts) + "$"
 
 
 class ModelField(object):
@@ -149,6 +273,72 @@ class ModelField(object):
     def not_in(self, other: Any):
         return ModelFieldOperation(
             model_field=self, operation=Operator.NOT_IN, value=other
+        )
+
+    def is_(self, value: Any) -> "ModelFieldOperation":
+        """Match documents where the field equals *value* (supports ``None`` for null check)."""
+        return ModelFieldOperation(
+            model_field=self, operation=Operator.EQUAL, value=value
+        )
+
+    def is_not(self, value: Any) -> "ModelFieldOperation":
+        """Match documents where the field does not equal *value* (supports ``None``)."""
+        return ModelFieldOperation(
+            model_field=self, operation=Operator.NOT_EQUAL, value=value
+        )
+
+    # ── string operators ────────────────────────────────────────────────────
+
+    def like(self, pattern: Text) -> "ModelFieldOperation":
+        """SQL LIKE match (``%`` = any chars, ``_`` = one char). Case-sensitive."""
+        return ModelFieldOperation(
+            model_field=self,
+            operation=Operator.REGEX,
+            value=RegexValue(pattern=_like_to_regex(pattern)),
+        )
+
+    def ilike(self, pattern: Text) -> "ModelFieldOperation":
+        """Case-insensitive SQL LIKE match."""
+        return ModelFieldOperation(
+            model_field=self,
+            operation=Operator.REGEX,
+            value=RegexValue(pattern=_like_to_regex(pattern), options="i"),
+        )
+
+    def contains(self, value: Text) -> "ModelFieldOperation":
+        """Substring match (case-sensitive)."""
+        return ModelFieldOperation(
+            model_field=self,
+            operation=Operator.REGEX,
+            value=RegexValue(pattern=re.escape(value)),
+        )
+
+    def startswith(self, value: Text) -> "ModelFieldOperation":
+        """Prefix match (case-sensitive)."""
+        return ModelFieldOperation(
+            model_field=self,
+            operation=Operator.REGEX,
+            value=RegexValue(pattern="^" + re.escape(value)),
+        )
+
+    def endswith(self, value: Text) -> "ModelFieldOperation":
+        """Suffix match (case-sensitive)."""
+        return ModelFieldOperation(
+            model_field=self,
+            operation=Operator.REGEX,
+            value=RegexValue(pattern=re.escape(value) + "$"),
+        )
+
+    # ── range operator ───────────────────────────────────────────────────────
+
+    def between(self, low: Any, high: Any) -> "ModelFieldOperation":
+        """Inclusive range: ``low <= field <= high``.
+
+        Equivalent to ``and_(field >= low, field <= high)`` but rendered as a
+        single ``{"$gte": low, "$lte": high}`` expression for index efficiency.
+        """
+        return ModelFieldOperation(
+            model_field=self, operation=Operator.BETWEEN, value=(low, high)
         )
 
     def __neg__(self) -> "ModelFieldSort":
