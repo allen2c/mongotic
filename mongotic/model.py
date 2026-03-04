@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Text, Type, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Text, Type, Union
 
 from pydantic import BaseModel, PrivateAttr
 from pydantic._internal import _model_construction
@@ -359,6 +359,7 @@ class MongoBaseModelMeta(_model_construction.ModelMetaclass):
 class MongoBaseModel(BaseModel, metaclass=MongoBaseModelMeta):
     __databasename__: Text = NOT_SET_SENTINEL
     __tablename__: Text = NOT_SET_SENTINEL
+    __indexes__: ClassVar[List[Any]] = []
 
     _id: Optional[Text] = PrivateAttr(None)
     _session: Optional["Session"] = PrivateAttr(None)
