@@ -3,6 +3,7 @@ from typing import (
     Any,
     Dict,
     Generic,
+    Iterator,
     List,
     Optional,
     Protocol,
@@ -21,7 +22,9 @@ from pymongo import MongoClient
 from mongotic.exceptions import MultipleResultsFound, NotFound
 from mongotic.model import (
     NOT_SET_SENTINEL,
+    ModelFieldOperation,
     MongoBaseModel,
+    SortDirection,
 )
 
 _T = TypeVar("_T", bound="MongoBaseModel")
@@ -42,8 +45,6 @@ class ScalarResult(Generic[_T]):
 
     def _build_cursor(self):
         from pymongo import ASCENDING, DESCENDING
-
-        from mongotic.model import ModelFieldOperation, SortDirection
 
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         cursor = self._collection.find(filter_body)
@@ -71,15 +72,20 @@ class ScalarResult(Generic[_T]):
         obj._session = self._session
         return obj  # type: ignore[return-value]
 
-    def all(self) -> List[_T]:
+    def all(self) -> List[Any]:
+        if self._stmt._distinct_field is not None:
+            filter_body = ModelFieldOperation.to_mongo_filter(
+                filters=self._stmt._filters
+            )
+            return self._collection.distinct(
+                self._stmt._distinct_field.field_name, filter_body
+            )
         return [self._hydrate(doc) for doc in self._build_cursor()]
 
     def first(self) -> Optional[_T]:
-        from mongotic.model import ModelFieldOperation
-
-        filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
-        doc = self._collection.find_one(filter_body)
-        return self._hydrate(doc) if doc else None
+        cursor = self._build_cursor().limit(1)
+        docs = list(cursor)
+        return self._hydrate(docs[0]) if docs else None
 
     def one(self) -> _T:
         cursor = self._build_cursor()
@@ -102,16 +108,16 @@ class ScalarResult(Generic[_T]):
         return self._hydrate(docs[0])
 
     def count(self) -> int:
-        from mongotic.model import ModelFieldOperation
-
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         return self._collection.count_documents(filter_body)
 
     def exists(self) -> bool:
-        from mongotic.model import ModelFieldOperation
-
         filter_body = ModelFieldOperation.to_mongo_filter(filters=self._stmt._filters)
         return self._collection.count_documents(filter_body, limit=1) > 0
+
+    def __iter__(self) -> Iterator[_T]:
+        for doc in self._build_cursor():
+            yield self._hydrate(doc)
 
 
 class Session(Protocol):
@@ -119,8 +125,18 @@ class Session(Protocol):
     _add_instances: List["MongoBaseModel"]
     _update_instances: Dict[Tuple[int, Text], Tuple["MongoBaseModel", Text, Any]]
     _delete_instances: List["MongoBaseModel"]
+    _merge_instances: List["MongoBaseModel"]
 
     def __init__(self, **kwargs: Any): ...
+
+    @property
+    def new(self) -> List["MongoBaseModel"]: ...
+
+    @property
+    def dirty(self) -> List["MongoBaseModel"]: ...
+
+    @property
+    def deleted(self) -> List["MongoBaseModel"]: ...
 
     def scalars(self, stmt: "Select[_T]") -> "ScalarResult[_T]": ...
 
@@ -133,6 +149,10 @@ class Session(Protocol):
     def add_all(self, instances: List["MongoBaseModel"]) -> None: ...
 
     def delete(self, instance: "MongoBaseModel") -> None: ...
+
+    def refresh(self, instance: "MongoBaseModel") -> None: ...
+
+    def merge(self, instance: "MongoBaseModel") -> "MongoBaseModel": ...
 
     def flush(self) -> None: ...
 
@@ -156,6 +176,24 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
                 Tuple[int, Text], Tuple["MongoBaseModel", Text, Any]
             ] = {}
             self._delete_instances: List["MongoBaseModel"] = []
+            self._merge_instances: List["MongoBaseModel"] = []
+
+        # ── state properties ─────────────────────────────────────────────────
+
+        @property
+        def new(self) -> List["MongoBaseModel"]:
+            return list(self._add_instances)
+
+        @property
+        def dirty(self) -> List["MongoBaseModel"]:
+            seen: Dict[int, "MongoBaseModel"] = {}
+            for instance, _field, _value in self._update_instances.values():
+                seen[id(instance)] = instance
+            return list(seen.values())
+
+        @property
+        def deleted(self) -> List["MongoBaseModel"]:
+            return list(self._delete_instances)
 
         # ── querying ────────────────────────────────────────────────────────
 
@@ -177,7 +215,6 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
             )
 
         def execute(self, stmt: Any) -> int:
-            from mongotic.model import ModelFieldOperation
             from mongotic.query import Delete, Update
 
             filter_body = ModelFieldOperation.to_mongo_filter(filters=stmt._filters)
@@ -222,6 +259,52 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
             if instance.__tablename__ is NOT_SET_SENTINEL:
                 raise ValueError("Table name is not set")
             self._delete_instances.append(instance)
+
+        def refresh(self, instance: "MongoBaseModel") -> None:
+            """Reload all fields of *instance* from the database in-place.
+            Clears any pending field-level updates for this instance.
+
+            Note: if the instance is staged for deletion, the deletion staging
+            is preserved — call ``session.rollback()`` first to cancel it."""
+            if instance._id is None:
+                raise ValueError(
+                    "Cannot refresh an instance that has not been persisted (_id is None)"
+                )
+            collection = self.engine[instance.__databasename__][instance.__tablename__]
+            doc = collection.find_one({"_id": ObjectId(instance._id)})
+            if doc is None:
+                raise NotFound(
+                    f"Document with _id={instance._id!r} no longer exists in the database"
+                )
+            refreshed = instance.__class__(**doc)
+            for field_name in instance.__class__.model_fields:
+                object.__setattr__(instance, field_name, getattr(refreshed, field_name))
+            # Clear any pending updates for this instance
+            keys_to_remove = [k for k in self._update_instances if k[0] == id(instance)]
+            for k in keys_to_remove:
+                del self._update_instances[k]
+
+        def merge(self, instance: "MongoBaseModel") -> "MongoBaseModel":
+            """Stage *instance* for an upsert on the next flush/commit.
+            If *instance* has no _id, behaves like session.add().
+            Returns the instance with _session bound."""
+            if instance.__databasename__ is NOT_SET_SENTINEL:
+                raise ValueError("Database name is not set")
+            if instance.__tablename__ is NOT_SET_SENTINEL:
+                raise ValueError("Table name is not set")
+            if instance._id is None:
+                self._add_instances.append(instance)
+            else:
+                # replace_one will write the full document; discard any pending
+                # field-level updates for this instance to avoid redundant writes
+                keys_to_remove = [
+                    k for k in self._update_instances if k[0] == id(instance)
+                ]
+                for k in keys_to_remove:
+                    del self._update_instances[k]
+                self._merge_instances.append(instance)
+            instance._session = self
+            return instance
 
         # ── write control (no transactions) ──────────────────────────────────
 
@@ -278,11 +361,23 @@ def sessionmaker(bind: "MongoClient") -> Type[Session]:
                 ]
                 _col.delete_one({"_id": ObjectId(_delete_instance._id)})
 
+            for _merge_instance in self._merge_instances:
+                _col = engine[_merge_instance.__databasename__][
+                    _merge_instance.__tablename__
+                ]
+                _col.replace_one(
+                    {"_id": ObjectId(_merge_instance._id)},
+                    _merge_instance.model_dump(),
+                    upsert=True,
+                )
+                _merge_instance._session = self
+
             self._clear_staging()
 
         def _clear_staging(self) -> None:
             self._add_instances = []
             self._update_instances = {}
             self._delete_instances = []
+            self._merge_instances = []
 
     return _Session

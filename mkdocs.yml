@@ -31,6 +31,7 @@ nav:
   - Quickstart: quickstart.md
   - Querying: querying.md
   - Session: session.md
+  - Indexes: indexes.md
   - Migration Guide (v0.2 → v0.3): migration-v0.2-to-v0.3.md
   - Design: design.md
 

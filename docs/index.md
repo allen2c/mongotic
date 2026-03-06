@@ -31,7 +31,8 @@ pip install mongotic
 | Page | What it covers |
 |------|---------------|
 | [Quickstart](quickstart.md) | End-to-end example in under 5 minutes |
-| [Querying](querying.md) | `select()`, filters, sort, pagination, `ScalarResult` |
-| [Session](session.md) | Session lifecycle, writes, flush vs commit |
+| [Querying](querying.md) | `select()`, filters, logical combinators, string/range/null operators, distinct, `ScalarResult` |
+| [Session](session.md) | Session lifecycle, writes, refresh, merge, state properties |
+| [Indexes](indexes.md) | `__indexes__` declaration and `create_indexes()` |
 | [Migration Guide](migration-v0.2-to-v0.3.md) | Breaking changes from v0.2.0 |
 | [Design](design.md) | Architecture rationale |

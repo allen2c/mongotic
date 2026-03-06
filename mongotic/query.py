@@ -1,6 +1,9 @@
 from typing import Any, Dict, Generic, List, Optional, Text, Type, TypeVar, Union
 
 from mongotic.model import (
+    CompoundFilter,
+    FilterType,
+    ModelField,
     ModelFieldOperation,
     ModelFieldSort,
     MongoBaseModel,
@@ -13,18 +16,29 @@ _T = TypeVar("_T", bound="MongoBaseModel")
 class Select(Generic[_T]):
     def __init__(self, orm_model: Type[_T]):
         self._model = orm_model
-        self._filters: List["ModelFieldOperation"] = []
+        self._filters: List["FilterType"] = []
         self._sort: List["ModelFieldSort"] = []
         self._limit: Optional[int] = None
         self._offset: Optional[int] = None
+        self._distinct_field: Optional["ModelField"] = None
 
-    def where(self, *model_field_operations: "ModelFieldOperation") -> "Select[_T]":
-        self._filters.extend(model_field_operations)
+    def where(self, *conditions: "FilterType") -> "Select[_T]":
+        self._filters.extend(conditions)
+        return self
+
+    def distinct(self, field: "ModelField") -> "Select[_T]":
+        """Return unique values for *field* using MongoDB ``collection.distinct()``.
+
+        Call ``.all()`` on the resulting ``ScalarResult`` to retrieve a
+        ``List[Any]`` of distinct values.
+
+        Note: ``.order_by()``, ``.limit()``, and ``.offset()`` are ignored for
+        distinct queries — MongoDB's ``distinct`` command does not support them.
+        """
+        self._distinct_field = field
         return self
 
     def order_by(self, *fields: Union["ModelFieldSort", Any]) -> "Select[_T]":
-        from mongotic.model import ModelField
-
         for field in fields:
             if isinstance(field, ModelFieldSort):
                 self._sort.append(field)
@@ -54,11 +68,11 @@ class Select(Generic[_T]):
 class Update:
     def __init__(self, orm_model: Type["MongoBaseModel"]):
         self._model = orm_model
-        self._filters: List["ModelFieldOperation"] = []
+        self._filters: List["FilterType"] = []
         self._values: Dict[Text, Any] = {}
 
-    def where(self, *model_field_operations: "ModelFieldOperation") -> "Update":
-        self._filters.extend(model_field_operations)
+    def where(self, *conditions: "FilterType") -> "Update":
+        self._filters.extend(conditions)
         return self
 
     def values(self, **kwargs: Any) -> "Update":
@@ -69,10 +83,10 @@ class Update:
 class Delete:
     def __init__(self, orm_model: Type["MongoBaseModel"]):
         self._model = orm_model
-        self._filters: List["ModelFieldOperation"] = []
+        self._filters: List["FilterType"] = []
 
-    def where(self, *model_field_operations: "ModelFieldOperation") -> "Delete":
-        self._filters.extend(model_field_operations)
+    def where(self, *conditions: "FilterType") -> "Delete":
+        self._filters.extend(conditions)
         return self
 
 

@@ -13,6 +13,9 @@ The `mongotic` library is designed to make working with MongoDB as seamless as p
 ## Features
 
 - **SQLAlchemy v2 API**: `select()`, `session.scalars()`, `ScalarResult` — familiar patterns without a SQL database.
+- **Rich query operators**: logical combinators (`or_`, `and_`, `not_`), null checks, string matching, range, and distinct.
+- **Session management**: `refresh()`, `merge()`, state inspection (`.new`, `.dirty`, `.deleted`).
+- **Declarative indexes**: define `__indexes__` on the model, apply with `create_indexes()`.
 - **Bulk Operations**: `update()` and `delete()` statement builders via `session.execute()`.
 - **Data Validation**: Utilise Pydantic's powerful schema definition for data validation and serialisation.
 - **Type Checking**: Benefit from type checking and autocomplete in IDEs due to static type definitions.
