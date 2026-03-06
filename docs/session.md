@@ -104,3 +104,82 @@ session.rollback()   # "Temp" user is never written
 ## close()
 
 Discards un-flushed staged changes and is called automatically by the context manager. Equivalent to `rollback()` followed by releasing the session.
+
+---
+
+## refresh(instance)
+
+Reloads all fields of an instance from the database in-place. Useful after an external process has modified the document, or to confirm the current DB state.
+
+```python
+with Session() as session:
+    user = session.scalars(select(User).where(User.name == "Alice")).one()
+    print(user.age)  # 25
+
+    # some external process updates the document...
+
+    session.refresh(user)
+    print(user.age)  # 30 — reloaded from DB
+```
+
+- Raises `ValueError` if the instance has no `_id` (was never persisted).
+- Raises `NotFound` if the document no longer exists in the database.
+- Clears any pending field-level updates for the instance after refresh.
+
+---
+
+## merge(instance)
+
+Stages an instance for an upsert on the next `flush()` / `commit()`. If `_id` is already set, the existing document is replaced; if not, a new document is inserted.
+
+```python
+with Session() as session:
+    # If a user with this _id exists → update; otherwise → insert
+    user = User(name="Alice", age=30)
+    user._id = "507f1f77bcf86cd799439011"   # _id is a private attr, set after construction
+    merged = session.merge(user)
+    session.flush()
+
+    print(merged._id)  # "507f1f77bcf86cd799439011"
+```
+
+| Scenario | Behaviour |
+|---|---|
+| `instance._id` is set and document exists | Replaces document on flush |
+| `instance._id` is set but document doesn't exist | Inserts document on flush |
+| `instance._id` is `None` | Behaves like `session.add()` |
+
+!!! note
+    `merge()` uses MongoDB's `replace_one(..., upsert=True)` under the hood. Any pending field-level updates for the same instance are discarded — the full in-memory state is written on flush.
+
+---
+
+## Session state properties
+
+Inspect the session's pending state before flushing:
+
+```python
+with Session() as session:
+    user = User(name="Alice", age=25)
+    session.add(user)
+
+    print(session.new)      # [User(name="Alice", ...)]
+    print(session.dirty)    # []
+    print(session.deleted)  # []
+
+    session.flush()
+
+    user.age = 26
+    print(session.dirty)    # [User(name="Alice", age=26)]
+
+    session.delete(user)
+    print(session.deleted)  # [User(name="Alice", ...)]
+```
+
+| Property | Returns | Description |
+|---|---|---|
+| `session.new` | `list[Model]` | Instances staged for insertion |
+| `session.dirty` | `list[Model]` | Instances with pending field changes |
+| `session.deleted` | `list[Model]` | Instances staged for deletion |
+
+All three properties return shallow copies — mutating the returned list does not affect session state. All are empty after `flush()`.

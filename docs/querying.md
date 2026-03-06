@@ -59,6 +59,120 @@ stmt = select(User).limit(20).offset(40)   # page 3 of 20
 
 ---
 
+## Logical combinators
+
+Use `or_()`, `and_()`, and `not_()` to compose complex filter conditions.
+
+```python
+from mongotic import select, or_, and_, not_
+
+# OR — users who are admin or moderator
+stmt = select(User).where(
+    or_(User.role == "admin", User.role == "moderator")
+)
+
+# NOT — exclude banned users
+stmt = select(User).where(
+    not_(User.status == "banned")
+)
+
+# Nested composition
+stmt = select(User).where(
+    and_(
+        User.age >= 18,
+        or_(User.role == "admin", User.verified == True),
+    )
+)
+
+# not_(or_(...)) maps to MongoDB $nor
+stmt = select(User).where(
+    not_(or_(User.role == "guest", User.role == "anonymous"))
+)
+```
+
+| Combinator | MongoDB operator |
+|---|---|
+| `or_(A, B)` | `{"$or": [A, B]}` |
+| `and_(A, B)` | `{"$and": [A, B]}` |
+| `not_(field_op)` | `{"field": {"$not": expr}}` |
+| `not_(or_(A, B))` | `{"$nor": [A, B]}` |
+
+---
+
+## Null checks
+
+Use `.is_()` and `.is_not()` to test for `None` (null / missing fields).
+
+```python
+# Find users with no email set
+stmt = select(User).where(User.email.is_(None))
+
+# Find users that have an email
+stmt = select(User).where(User.email.is_not(None))
+```
+
+!!! note
+    In MongoDB, `{"field": None}` matches documents where the field is `null` **or** where the field does not exist at all.
+
+---
+
+## String operators
+
+| Method | SQL equivalent | MongoDB |
+|---|---|---|
+| `.like("Al%")` | `LIKE 'Al%'` | `{"$regex": "^Al.*$"}` |
+| `.ilike("al%")` | `ILIKE 'al%'` | `{"$regex": "^al.*$", "$options": "i"}` |
+| `.contains("gmail")` | `LIKE '%gmail%'` | `{"$regex": "gmail"}` |
+| `.startswith("Al")` | `LIKE 'Al%'` | `{"$regex": "^Al"}` |
+| `.endswith("son")` | `LIKE '%son'` | `{"$regex": "son$"}` |
+
+```python
+stmt = select(User).where(User.name.startswith("Al"))
+stmt = select(User).where(User.email.contains("@gmail.com"))
+stmt = select(User).where(User.name.ilike("alice"))
+```
+
+!!! warning "Index usage"
+    MongoDB can use an index for regex queries only when the pattern is anchored with `^`. `.startswith()` and `.like("prefix%")` benefit from indexes; `.contains()` and `.endswith()` do not.
+
+---
+
+## Range operator
+
+`.between(low, high)` is inclusive on both ends — equivalent to `field >= low AND field <= high`.
+
+```python
+stmt = select(User).where(User.age.between(18, 65))
+
+# Works with dates
+from datetime import datetime
+stmt = select(Order).where(
+    Order.created_at.between(datetime(2024, 1, 1), datetime(2024, 12, 31))
+)
+```
+
+---
+
+## Distinct values
+
+`.distinct(field)` returns a list of unique values for a field, optionally filtered by `.where()`.
+
+```python
+# All unique roles
+roles = session.scalars(select(User).distinct(User.role)).all()
+# → ["admin", "member", "guest"]
+
+# Distinct roles among active users
+active_roles = session.scalars(
+    select(User).where(User.active == True).distinct(User.role)
+).all()
+```
+
+!!! note
+    `.distinct()` uses MongoDB's `collection.distinct()` command, which returns plain values (not model instances). `.order_by()` and `.limit()` have no effect on distinct queries.
+
+---
+
 ## Executing with `session.scalars()`
 
 ```python
@@ -78,12 +192,25 @@ result = session.scalars(stmt)   # returns ScalarResult
 | `.count()` | `int` | Number of matching documents |
 | `.exists()` | `bool` | `True` if at least one document matches |
 
+### Iteration
+
+`ScalarResult` is iterable — you can use it directly in `for` loops, list comprehensions, and unpacking:
+
 ```python
-users  = session.scalars(select(User)).all()
-first  = session.scalars(select(User).where(User.age > 50)).first()
-count  = session.scalars(select(User).where(User.company == "Acme")).count()
-exists = session.scalars(select(User).where(User.company == "Acme")).exists()
+result = session.scalars(select(User).where(User.active == True))
+
+# for loop
+for user in result:
+    print(user.name)
+
+# list comprehension
+names = [u.name for u in session.scalars(stmt)]
+
+# unpacking
+first, second, *rest = session.scalars(stmt)
 ```
+
+Each iteration creates a fresh cursor, so the same `ScalarResult` can be iterated multiple times.
 
 ### Strict single-result fetch
 

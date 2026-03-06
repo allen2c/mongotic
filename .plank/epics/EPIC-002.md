@@ -1,9 +1,9 @@
 ---
 id: EPIC-002
 title: "v0.4.0 - SA v2 API Completeness"
-status: todo
+status: done
 created: 2026-03-03
-updated: 2026-03-03
+updated: 2026-03-06
 issues:
   - MGT-008
   - MGT-018
@@ -32,18 +32,18 @@ iteration).
 
 v0.4.0 is considered complete when:
 
-- [ ] `or_()`, `and_()`, `not_()` logical combinators work in `.where()` clauses
-- [ ] `.is_(None)` / `.is_not(None)` null checks work
-- [ ] `.like()`, `.contains()`, `.startswith()`, `.endswith()` string operators work
-- [ ] `.between(low, high)` range operator works
-- [ ] `.distinct()` returns unique values for a field
-- [ ] `ScalarResult` supports `__iter__` / `__next__` for direct iteration
-- [ ] `session.refresh(instance)` reloads from DB
-- [ ] `session.merge(instance)` performs upsert
-- [ ] `session.dirty` / `session.new` / `session.deleted` properties exposed
-- [ ] `__indexes__` declarative index definition works
-- [ ] Documentation updated for all new APIs
-- [ ] All tests pass
+- [x] `or_()`, `and_()`, `not_()` logical combinators work in `.where()` clauses
+- [x] `.is_(None)` / `.is_not(None)` null checks work
+- [x] `.like()`, `.contains()`, `.startswith()`, `.endswith()` string operators work
+- [x] `.between(low, high)` range operator works
+- [x] `.distinct()` returns unique values for a field
+- [x] `ScalarResult` supports `__iter__` / `__next__` for direct iteration
+- [x] `session.refresh(instance)` reloads from DB
+- [x] `session.merge(instance)` performs upsert
+- [x] `session.dirty` / `session.new` / `session.deleted` properties exposed
+- [x] `__indexes__` declarative index definition works
+- [x] Documentation updated for all new APIs
+- [x] All tests pass
 
 ## Implementation Phases
 
