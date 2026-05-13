@@ -214,7 +214,7 @@ def test_execute_bulk_update(mongo_engine: "MongoClient"):
 
     stmt = update(User).where(User.company == test_company).values(age=99)
     modified = session.execute(stmt)
-    assert modified > 0
+    assert modified.rowcount > 0
 
     # Verify all matching documents now have age=99
     users = session.scalars(
@@ -243,7 +243,7 @@ def test_execute_bulk_delete(mongo_engine: "MongoClient"):
 
     stmt = delete(User).where(User.company == bulk_company)
     deleted = session.execute(stmt)
-    assert deleted == 2
+    assert deleted.rowcount == 2
 
     count_after = session.scalars(
         select(User).where(User.company == bulk_company)

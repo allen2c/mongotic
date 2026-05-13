@@ -12,6 +12,13 @@ if TYPE_CHECKING:
 NOT_SET_SENTINEL = object()
 
 
+def _assert_model_bound(instance):
+    if instance.__databasename__ is NOT_SET_SENTINEL:
+        raise ValueError("Database name is not set")
+    if instance.__tablename__ is NOT_SET_SENTINEL:
+        raise ValueError("Table name is not set")
+
+
 class Operator(Enum):
     EQUAL = auto()
     NOT_EQUAL = auto()
@@ -363,6 +370,7 @@ class MongoBaseModel(BaseModel, metaclass=MongoBaseModelMeta):
 
     _id: Optional[Text] = PrivateAttr(None)
     _session: Optional["Session"] = PrivateAttr(None)
+    _expired: bool = PrivateAttr(default=False)
 
     def __setattr__(self, name: Text, value: Any) -> None:
         super().__setattr__(name, value)
