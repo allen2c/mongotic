@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mongotic"
-version = "0.4.0"
+version = "0.5.0"
 description = "The concept of MongoDB, SQLAlchemy and Pydantic."
 authors = ["Allen Chou <f1470891079@gmail.com>"]
 license = "MIT"
@@ -13,7 +13,7 @@ documentation = "https://allen2c.github.io/mongotic/"
 [tool.poetry.dependencies]
 python = ">=3.11.0,<3.15.0"
 pydantic = "^2"
-pymongo = "^4"
+pymongo = ">=4.13.0,<5"
 
 [tool.poetry.group.dev.dependencies]
 black = "*"
