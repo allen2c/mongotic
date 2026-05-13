@@ -21,6 +21,7 @@ isort = "*"
 mkdocs-material = "*"
 pytest = "*"
 pytest-asyncio = "*"
+pytest-cov = "*"
 pytest-dotenv = "*"
 
 [tool.poetry.requires-plugins]
@@ -29,6 +30,19 @@ poetry-plugin-export = "*"
 [tool.pytest.ini_options]
 env_files = ".env"
 asyncio_mode = "auto"
+addopts = "--cov=mongotic --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["mongotic"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",
+]
 
 [tool.isort]
 profile = "black"
