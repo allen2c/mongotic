@@ -153,6 +153,38 @@ stmt = select(Order).where(
 
 ---
 
+## Column projection
+
+Pass individual `ModelField` attributes to `select()` to fetch only a subset of fields. `session.execute()` returns a `SelectResult` whose items are `Row` objects.
+
+```python
+from mongotic.result import Row, SelectResult
+
+result = session.execute(
+    select(User.name, User.email).where(User.age >= 18)
+)
+assert isinstance(result, SelectResult)
+
+for row in result.all():
+    # attribute, index, and key access all work
+    print(row.name, row.email)
+    print(row[0], row["name"])
+```
+
+For a **single-column** projection, `session.scalars()` unwraps each row to a plain value:
+
+```python
+names = session.scalars(
+    select(User.name).where(User.company == "Acme")
+).all()
+# → ["Alice", "Bob", "Carol"]
+```
+
+!!! note
+    Passing multiple columns to `session.scalars()` raises `TypeError`. Use `session.execute()` for multi-column projections.
+
+---
+
 ## Distinct values
 
 `.distinct(field)` returns a list of unique values for a field, optionally filtered by `.where()`.
@@ -234,6 +266,40 @@ user = session.scalars(
 
 ---
 
+## `session.scalar()` shortcut
+
+`session.scalar(stmt)` is a convenience method that returns the first unwrapped value, or `None` if there are no results. It is equivalent to `session.scalars(stmt).first()`.
+
+```python
+age = session.scalar(
+    select(User.age).where(User.email == "alice@example.com")
+)
+# → 30, or None if not found
+```
+
+Works with full-model selects too:
+
+```python
+user = session.scalar(select(User).where(User.name == "Alice"))
+# → User instance, or None
+```
+
+---
+
+## `yield_per(n)`
+
+`yield_per(n)` is accepted on `Select` for API compatibility with SQLAlchemy v2 patterns. It is a chainable no-op.
+
+```python
+stmt = select(User).where(User.active == True).yield_per(100)
+# Executes identically to select(User).where(User.active == True)
+```
+
+!!! note
+    PyMongo cursors are already lazy and memory-efficient. `yield_per` has no effect on cursor behaviour.
+
+---
+
 ## Primary key lookup with `session.get()`
 
 ```python
@@ -243,20 +309,48 @@ user = session.get(User, "507f1f77bcf86cd799439011")
 
 ---
 
-## Bulk update and delete
+## Bulk DML
+
+`session.execute()` runs immediately — no staging, no `commit()` needed. It returns a `Result` with `.rowcount` and `.inserted_ids`.
+
+### Bulk insert
 
 ```python
-from mongotic import update, delete
+from mongotic import insert
+from mongotic.result import Result
 
-# Update all guests to members — returns number of modified documents
-modified = session.execute(
-    update(User).where(User.role == "guest").values(role="member")
+r = session.execute(
+    insert(User).values([
+        {"name": "Alice", "email": "alice@example.com", "age": 30},
+        {"name": "Bob",   "email": "bob@example.com",   "age": 25},
+    ])
 )
-
-# Delete inactive users — returns number of deleted documents
-deleted = session.execute(
-    delete(User).where(User.active == False)
-)
+assert isinstance(r, Result)
+print(r.rowcount)       # 2
+print(r.inserted_ids)   # ["<id1>", "<id2>"]
 ```
 
-`session.execute()` runs immediately — no staging, no `commit()` needed.
+!!! note
+    `insert()` bypasses the session staging area — inserted documents do not appear in `session.new`.
+
+### Bulk update
+
+```python
+from mongotic import update
+
+r = session.execute(
+    update(User).where(User.role == "guest").values(role="member")
+)
+print(r.rowcount)   # number of modified documents
+```
+
+### Bulk delete
+
+```python
+from mongotic import delete
+
+r = session.execute(
+    delete(User).where(User.active == False)
+)
+print(r.rowcount)   # number of deleted documents
+```

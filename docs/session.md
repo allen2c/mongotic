@@ -154,6 +154,48 @@ with Session() as session:
 
 ---
 
+## expunge(instance)
+
+Detaches an instance from the session. Any pending field-level updates for that instance are discarded.
+
+```python
+user = session.scalars(select(User).where(User.name == "Alice")).one()
+user.age = 99           # staged as dirty
+session.expunge(user)   # removed from dirty tracking
+assert session.dirty == []
+assert user._session is None
+```
+
+After expunging, the instance may be freely modified or re-added to another session:
+
+```python
+session.add(user)   # re-attaches; staged in session.new
+```
+
+`expunge()` is idempotent — calling it twice on the same instance does not raise.
+
+---
+
+## expire(instance)
+
+Marks an instance as stale and clears any pending field updates for it. The in-memory attribute values are retained, but the `_expired` flag signals that they may not match the database.
+
+```python
+user = session.scalars(select(User).where(User.name == "Alice")).one()
+user.age = 99
+session.expire(user)
+# user._expired is True; user.age is still 99 in memory
+session.refresh(user)   # explicit reload from DB
+print(user.age)         # DB value
+```
+
+!!! warning "No lazy reload"
+    `expire()` does **not** trigger a database round-trip on the next attribute access. Call `session.refresh(user)` explicitly when you need the current DB state.
+
+    This is intentional: mongotic supports both sync and async sessions. Lazy attribute fetching would require `await` in the async path, which is incompatible with Python attribute access syntax. Explicit `refresh()` is the uniform API in both modes.
+
+---
+
 ## Session state properties
 
 Inspect the session's pending state before flushing:
@@ -183,3 +225,11 @@ with Session() as session:
 | `session.deleted` | `list[Model]` | Instances staged for deletion |
 
 All three properties return shallow copies — mutating the returned list does not affect session state. All are empty after `flush()`.
+
+---
+
+## Async sessions
+
+The sync `Session` API has a full async counterpart in `mongotic.asyncio`. Methods that perform I/O become `await`able; methods that only mutate in-memory state (`add`, `delete`, `rollback`, `expunge`, `expire`, `merge`) remain synchronous.
+
+See [Async](async.md) for setup, usage examples, and a sync/async cheat sheet.
