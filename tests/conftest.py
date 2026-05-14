@@ -3,7 +3,8 @@ import os
 from typing import Generator
 
 import pytest
-from pymongo import MongoClient
+import pytest_asyncio
+from pymongo import AsyncMongoClient, MongoClient
 
 from mongotic import create_engine
 
@@ -21,3 +22,14 @@ def mongo_engine() -> Generator["MongoClient", None, None]:
     engine = create_engine(mongo_conn_str)
     yield engine
     engine.close()
+
+
+@pytest_asyncio.fixture
+async def async_mongo_engine():
+    if "MONGODB_URI" not in os.environ:
+        raise Exception("Testing MONGODB_URI environment variable not set.")
+    engine = AsyncMongoClient(os.environ["MONGODB_URI"])
+    try:
+        yield engine
+    finally:
+        await engine.aclose()

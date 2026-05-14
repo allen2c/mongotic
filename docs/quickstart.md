@@ -101,3 +101,40 @@ with Session() as session:
 
 - [Querying](querying.md) — filters, sort, pagination, count, exists
 - [Session](session.md) — flush vs commit, rollback, context manager
+
+---
+
+## Async quickstart
+
+If your application runs inside an `asyncio` event loop, use `mongotic.asyncio` instead. The API mirrors the sync version exactly.
+
+```python
+import asyncio
+from mongotic.asyncio import create_async_engine, async_sessionmaker
+from mongotic import insert, select
+
+async_engine = create_async_engine("mongodb://localhost:27017")
+AsyncSession  = async_sessionmaker(bind=async_engine)
+
+async def main():
+    async with AsyncSession() as session:
+        # Bulk insert
+        await session.execute(
+            insert(User).values([
+                {"name": "Alice", "email": "alice@example.com", "age": 30},
+                {"name": "Bob",   "email": "bob@example.com",   "age": 25},
+            ])
+        )
+
+        # Query
+        adults = await session.scalars(select(User).where(User.age >= 18)).all()
+        print([u.name for u in adults])
+
+        # Async iteration
+        async for user in session.scalars(select(User)):
+            print(user.name)
+
+asyncio.run(main())
+```
+
+See [Async](async.md) for the full reference — session lifecycle, projection, indexes, and a sync/async cheat sheet.

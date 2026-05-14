@@ -5,7 +5,7 @@ from pymongo import MongoClient
 
 from .exceptions import MultipleResultsFound, NotFound
 from .model import MongoBaseModel, and_, not_, or_
-from .query import delete, select, update
+from .query import delete, insert, select, update
 from .version import VERSION
 
 __version__ = VERSION
@@ -14,6 +14,7 @@ __all__ = [
     "create_engine",
     "create_indexes",
     "select",
+    "insert",
     "update",
     "delete",
     "or_",

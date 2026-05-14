@@ -14,9 +14,11 @@ The `mongotic` library is designed to make working with MongoDB as seamless as p
 
 - **SQLAlchemy v2 API**: `select()`, `session.scalars()`, `ScalarResult` — familiar patterns without a SQL database.
 - **Rich query operators**: logical combinators (`or_`, `and_`, `not_`), null checks, string matching, range, and distinct.
-- **Session management**: `refresh()`, `merge()`, state inspection (`.new`, `.dirty`, `.deleted`).
+- **Session management**: `refresh()`, `merge()`, `expunge()`, `expire()`, state inspection (`.new`, `.dirty`, `.deleted`).
 - **Declarative indexes**: define `__indexes__` on the model, apply with `create_indexes()`.
-- **Bulk Operations**: `update()` and `delete()` statement builders via `session.execute()`.
+- **Bulk Operations**: `insert()`, `update()`, and `delete()` statement builders via `session.execute()`, returning a `Result` with `.rowcount` and `.inserted_ids`.
+- **Column projection**: `select(User.name, User.email)` returns lightweight `Row` results; single-column projection unwraps to plain values via `session.scalars()`.
+- **Full async API**: `mongotic.asyncio` — mirrors the sync session on top of `pymongo.AsyncMongoClient`.
 - **Data Validation**: Utilise Pydantic's powerful schema definition for data validation and serialisation.
 - **Type Checking**: Benefit from type checking and autocomplete in IDEs due to static type definitions.
 - **Works on standalone MongoDB**: No replica set required — no multi-document transaction dependency.
@@ -128,6 +130,44 @@ with Session() as session:
     session.flush()          # writes immediately; new_user._id is now available
     print(new_user._id)
     session.commit()         # alias for flush()
+```
+
+## Async usage
+
+`mongotic.asyncio` mirrors the sync API on `pymongo.AsyncMongoClient`. See [the async documentation](https://allen2c.github.io/mongotic/async/) for the full reference.
+
+```python
+import asyncio
+from mongotic.asyncio import create_async_engine, async_sessionmaker
+from mongotic import insert, select, update, delete
+
+async_engine = create_async_engine("mongodb://localhost:27017")
+AsyncSession  = async_sessionmaker(bind=async_engine)
+
+async def main():
+    async with AsyncSession() as session:
+        # Bulk insert
+        r = await session.execute(
+            insert(User).values([
+                {"name": "Alice", "email": "alice@example.com", "age": 30},
+            ])
+        )
+        print(r.inserted_ids)   # ["<ObjectId>"]
+
+        # Query
+        adults = await session.scalars(select(User).where(User.age >= 18)).all()
+
+        # Column projection — returns Row objects
+        names = await session.scalars(select(User.name)).all()
+
+        # Scalar shortcut
+        age = await session.scalar(select(User.age).where(User.name == "Alice"))
+
+        # Bulk update / delete
+        await session.execute(update(User).where(User.role == "guest").values(role="member"))
+        await session.execute(delete(User).where(User.active == False))
+
+asyncio.run(main())
 ```
 
 ## Contributing
