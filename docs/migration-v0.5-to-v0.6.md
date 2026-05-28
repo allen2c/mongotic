@@ -129,9 +129,8 @@ Run your test suite:
 pytest
 ```
 
-If anything fails, check the
-[v0.6 design spec](superpowers/specs/2026-05-28-v0.6.0-mapped-typing-design.md)
-for the design rationale and any known limitations.
+If anything fails, review the design rationale and known limitations in the
+project's v0.6 design spec.
 
 ## What is and is not breaking
 
