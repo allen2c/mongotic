@@ -1,4 +1,4 @@
-from typing import Any, List, MutableMapping, Optional, Text, Type
+from typing import Any, MutableMapping, Optional, Text, Type
 
 from bson.codec_options import TypeRegistry
 from pymongo import MongoClient

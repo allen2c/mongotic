@@ -5,7 +5,6 @@ from bson import ObjectId
 from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -78,7 +77,7 @@ def test_merge_with_nonexistent_id_inserts_document(mongo_engine: "MongoClient")
         user = User(name="Carol", company=test_company, age=35)
         user._id = fake_id
 
-        merged = session.merge(user)
+        session.merge(user)
         session.flush()
 
         # Document should now exist with the given _id

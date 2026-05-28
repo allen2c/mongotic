@@ -24,7 +24,6 @@ from pymongo import MongoClient
 
 from mongotic.exceptions import MultipleResultsFound, NotFound
 from mongotic.model import (
-    NOT_SET_SENTINEL,
     ModelFieldOperation,
     MongoBaseModel,
     _assert_model_bound,
@@ -230,7 +229,6 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
                 Select,
                 Update,
                 _apply_cursor_modifiers,
-                _compile_sort,
             )
 
             collection = self.engine[stmt._model.__databasename__][

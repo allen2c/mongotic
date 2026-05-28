@@ -6,7 +6,7 @@ import pytest
 from pydantic import Field
 
 from mongotic import insert, select
-from mongotic.asyncio import AsyncSelectResult, AsyncSession, async_sessionmaker
+from mongotic.asyncio import AsyncSelectResult, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
 

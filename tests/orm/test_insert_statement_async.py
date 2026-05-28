@@ -3,8 +3,8 @@ from typing import Optional, Text
 import pytest
 from pydantic import Field, ValidationError
 
-from mongotic import insert, select
-from mongotic.asyncio import AsyncSession, async_sessionmaker
+from mongotic import insert
+from mongotic.asyncio import async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
 

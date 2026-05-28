@@ -1,12 +1,12 @@
 """Async smoke tests for or_(), and_(), not_() logical combinators via AsyncSession."""
 
-from typing import Optional, Text
+from typing import Text
 
 import pytest
 from pydantic import Field
 
 from mongotic import and_, insert, not_, or_, select
-from mongotic.asyncio import AsyncSession, async_sessionmaker
+from mongotic.asyncio import async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
 

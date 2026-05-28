@@ -9,7 +9,7 @@ from pydantic import Field
 from pymongo import MongoClient
 
 from mongotic import or_, select
-from mongotic.model import ModelFieldOperation, MongoBaseModel, RegexValue
+from mongotic.model import ModelFieldOperation, MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
 

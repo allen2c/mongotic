@@ -3,10 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict, Generic, List, Optional, Text, Tuple, Type, TypeVar, Union
 
 from mongotic.model import (
-    CompoundFilter,
     FilterType,
     ModelField,
-    ModelFieldOperation,
     ModelFieldSort,
     MongoBaseModel,
     SortDirection,
@@ -29,7 +27,6 @@ def _is_field_entity(e):
 
 class Select(Generic[_T]):
     def __init__(self, entities: Tuple):
-        from mongotic.model import ModelField, MongoBaseModel
 
         if not entities:
             raise TypeError("select() requires at least one entity")

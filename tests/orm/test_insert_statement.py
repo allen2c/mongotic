@@ -3,7 +3,7 @@ from typing import Optional, Text
 import pytest
 from pydantic import Field, ValidationError
 
-from mongotic import insert, select
+from mongotic import insert
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str

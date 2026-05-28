@@ -19,7 +19,6 @@ from pymongo import AsyncMongoClient
 
 from mongotic.exceptions import MultipleResultsFound, NotFound
 from mongotic.model import (
-    NOT_SET_SENTINEL,
     ModelFieldOperation,
     MongoBaseModel,
     _assert_model_bound,

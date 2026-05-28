@@ -1,28 +1,33 @@
-[tool.poetry]
+[project]
 name = "mongotic"
-version = "0.5.0"
+version = "0.5.1"
 description = "The concept of MongoDB, SQLAlchemy and Pydantic."
-authors = ["Allen Chou <f1470891079@gmail.com>"]
+authors = [{ name = "Allen Chou", email = "f1470891079@gmail.com" }]
 license = "MIT"
 readme = "README.md"
 keywords = ["mongodb", "sqlalchemy", "pydantic"]
-homepage = "https://github.com/allen2c/mongotic"
-repository = "https://github.com/allen2c/mongotic"
-documentation = "https://allen2c.github.io/mongotic/"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2,<3",
+    "pymongo>=4.10,<5",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.11.0,<3.15.0"
-pydantic = "^2"
-pymongo = ">=4.13.0,<5"
+[project.urls]
+Homepage = "https://github.com/allen2c/mongotic"
+Repository = "https://github.com/allen2c/mongotic"
+Documentation = "https://allen2c.github.io/mongotic/"
 
-[tool.poetry.group.dev.dependencies]
-black = "*"
-isort = "*"
-mkdocs-material = "*"
-pytest = "*"
-pytest-asyncio = "*"
-pytest-cov = "*"
-pytest-dotenv = "*"
+[dependency-groups]
+dev = [
+    "black",
+    "isort",
+    "mkdocs-material",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-dotenv",
+    "ruff",
+]
 
 [tool.poetry.requires-plugins]
 poetry-plugin-export = "*"
@@ -44,9 +49,18 @@ exclude_lines = [
     "\\.\\.\\.",
 ]
 
+[tool.black]
+target-version = ["py311"]
+
 [tool.isort]
 profile = "black"
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+ignore = ["E501"]
+
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"

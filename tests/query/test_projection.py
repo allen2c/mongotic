@@ -2,7 +2,6 @@ from typing import Optional, Text
 
 import pytest
 from pydantic import Field
-from pymongo import MongoClient
 
 from mongotic import insert, select
 from mongotic.model import MongoBaseModel

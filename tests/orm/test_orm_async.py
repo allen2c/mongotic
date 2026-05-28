@@ -6,14 +6,14 @@ from pydantic import Field
 from pymongo import AsyncMongoClient
 
 from mongotic import delete, insert, select, update
-from mongotic.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from mongotic.asyncio import async_sessionmaker, create_async_engine
 from mongotic.model import MongoBaseModel
 from mongotic.result import Result
 from tests.helpers import rand_str
 
 
 def test_async_engine_imports():
-    from mongotic.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from mongotic.asyncio import async_sessionmaker
 
     assert callable(create_async_engine)
     assert callable(async_sessionmaker)
@@ -22,7 +22,6 @@ def test_async_engine_imports():
 async def test_create_async_engine_returns_async_client(async_mongo_engine):
     # async_mongo_engine fixture from conftest already exposes an AsyncMongoClient.
     # Here we additionally verify our create_async_engine factory:
-    import os
 
     from mongotic.asyncio import create_async_engine
 

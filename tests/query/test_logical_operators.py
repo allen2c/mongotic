@@ -1,6 +1,6 @@
 """Integration tests for or_(), and_(), not_() logical combinators (MGT-018)."""
 
-from typing import Optional, Text
+from typing import Text
 
 import pytest
 from pydantic import Field
@@ -9,7 +9,7 @@ from pymongo import MongoClient
 from mongotic import and_, not_, or_, select
 from mongotic.model import CompoundFilter, ModelFieldOperation, MongoBaseModel
 from mongotic.orm import sessionmaker
-from tests.helpers import rand_str, utc_now
+from tests.helpers import rand_str
 
 # Unique sentinel so tests don't collide with other test runs
 _TAG = rand_str(10)

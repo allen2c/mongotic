@@ -1,6 +1,5 @@
 """Integration tests for .between() range operator (MGT-023)."""
 
-from datetime import datetime, timezone
 from typing import Text
 
 import pytest

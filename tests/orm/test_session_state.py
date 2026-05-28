@@ -4,7 +4,6 @@ import pytest
 from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str

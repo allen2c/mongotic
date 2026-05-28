@@ -1,6 +1,5 @@
 from typing import Optional, Text
 
-import pytest
 from pydantic import Field
 
 from mongotic import insert, select, update
