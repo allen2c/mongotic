@@ -216,6 +216,8 @@ class Insert:
 def select(model: Type[_T], /) -> Select[_T]: ...
 @overload
 def select(*fields: ModelField) -> Select[Any]: ...
+
+
 def select(
     *entities: Union[Type[MongoBaseModel], ModelField],
 ) -> Select:

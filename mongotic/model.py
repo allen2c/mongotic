@@ -282,6 +282,7 @@ class Mapped(Generic[_T_field]):
     def __get__(self, instance: None, owner: type) -> "Mapped[_T_field]": ...
     @overload
     def __get__(self, instance: object, owner: type) -> _T_field: ...
+
     def __get__(self, instance: Any, owner: Any) -> Any:
         if instance is None:
             return self
