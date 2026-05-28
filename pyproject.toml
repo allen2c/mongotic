@@ -36,6 +36,9 @@ poetry-plugin-export = "*"
 env_files = ".env"
 asyncio_mode = "auto"
 addopts = "--cov=mongotic --cov-report=term-missing"
+filterwarnings = [
+    "once:You appear to be connected to a CosmosDB:UserWarning",
+]
 
 [tool.coverage.run]
 source = ["mongotic"]

@@ -40,6 +40,7 @@ def cleanup(mongo_engine: "MongoClient"):
     mongo_engine["test"][UserNoIndexes.__tablename__].drop()
 
 
+@pytest.mark.cosmos_unsupported
 def test_create_indexes_applies_to_collection(mongo_engine: "MongoClient"):
     create_indexes(mongo_engine, UserWithIndexes)
 
@@ -51,6 +52,7 @@ def test_create_indexes_applies_to_collection(mongo_engine: "MongoClient"):
     assert ("created_at", -1) in [k[0] for k in index_keys]
 
 
+@pytest.mark.cosmos_unsupported
 def test_create_indexes_unique_enforced(mongo_engine: "MongoClient"):
     from pymongo.errors import DuplicateKeyError
 
@@ -76,6 +78,7 @@ def test_create_indexes_skips_model_without_indexes(mongo_engine: "MongoClient")
     assert non_id_indexes == []
 
 
+@pytest.mark.cosmos_unsupported
 def test_create_indexes_accepts_multiple_models(mongo_engine: "MongoClient"):
     # Should handle multiple model args without error
     create_indexes(mongo_engine, UserWithIndexes, UserNoIndexes)

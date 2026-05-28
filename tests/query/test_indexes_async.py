@@ -39,6 +39,7 @@ async def cleanup(async_mongo_engine):
     await async_mongo_engine["test"][_UserNoIndexes.__tablename__].drop()
 
 
+@pytest.mark.cosmos_unsupported
 async def test_create_async_indexes_applies_to_collection(async_mongo_engine):
     await create_async_indexes(async_mongo_engine, _UserWithIndexes)
 
@@ -52,6 +53,7 @@ async def test_create_async_indexes_applies_to_collection(async_mongo_engine):
     assert ("created_at", -1) in [k[0] for k in index_keys]
 
 
+@pytest.mark.cosmos_unsupported
 async def test_create_async_indexes_unique_enforced(async_mongo_engine):
     from pymongo.errors import DuplicateKeyError
 
@@ -78,6 +80,7 @@ async def test_create_async_indexes_skips_model_without_indexes(async_mongo_engi
     assert non_id_indexes == []
 
 
+@pytest.mark.cosmos_unsupported
 async def test_create_async_indexes_accepts_multiple_models(async_mongo_engine):
     await create_async_indexes(async_mongo_engine, _UserWithIndexes, _UserNoIndexes)
 

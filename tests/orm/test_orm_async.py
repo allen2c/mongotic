@@ -136,6 +136,7 @@ async def test_async_scalars_first_one_or_none(async_session):
     assert nothing is None
 
 
+@pytest.mark.cosmos_unsupported
 async def test_async_for_iteration(async_session):
     s = async_session
     token = rand_str(6)

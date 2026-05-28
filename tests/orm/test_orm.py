@@ -112,6 +112,7 @@ def test_scalars_count_and_exists(mongo_engine: "MongoClient"):
     assert no_exists is False
 
 
+@pytest.mark.cosmos_unsupported
 def test_scalars_order_by_and_limit(mongo_engine: "MongoClient"):
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
