@@ -1,4 +1,4 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -15,8 +15,8 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user_state"
 
-    name: Text = Field(...)
-    company: Optional[Text] = Field(None)
+    name: str = Field(...)
+    company: Optional[str] = Field(None)
     age: Optional[int] = Field(None)
 
 
@@ -26,7 +26,7 @@ def cleanup(mongo_engine: "MongoClient"):
     mongo_engine["test"]["user_state"].delete_many({"company": test_company})
 
 
-def test_new_reflects_staged_adds(mongo_engine: "MongoClient"):
+def test_new_reflects_staged_adds(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         assert session.new == []
@@ -36,7 +36,7 @@ def test_new_reflects_staged_adds(mongo_engine: "MongoClient"):
         assert session.new[0] is user
 
 
-def test_new_empty_after_flush(mongo_engine: "MongoClient"):
+def test_new_empty_after_flush(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         session.add(User(name="Alice", company=test_company, age=25))
@@ -44,7 +44,7 @@ def test_new_empty_after_flush(mongo_engine: "MongoClient"):
         assert session.new == []
 
 
-def test_dirty_reflects_field_changes(mongo_engine: "MongoClient"):
+def test_dirty_reflects_field_changes(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Bob", company=test_company, age=30)
@@ -58,7 +58,7 @@ def test_dirty_reflects_field_changes(mongo_engine: "MongoClient"):
         assert dirty[0] is user
 
 
-def test_dirty_deduplicates_multiple_field_changes(mongo_engine: "MongoClient"):
+def test_dirty_deduplicates_multiple_field_changes(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Carol", company=test_company, age=35)
@@ -72,7 +72,7 @@ def test_dirty_deduplicates_multiple_field_changes(mongo_engine: "MongoClient"):
         assert session.dirty[0] is user
 
 
-def test_dirty_empty_after_flush(mongo_engine: "MongoClient"):
+def test_dirty_empty_after_flush(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Dave", company=test_company, age=40)
@@ -83,7 +83,7 @@ def test_dirty_empty_after_flush(mongo_engine: "MongoClient"):
         assert session.dirty == []
 
 
-def test_deleted_reflects_staged_deletes(mongo_engine: "MongoClient"):
+def test_deleted_reflects_staged_deletes(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Eve", company=test_company, age=22)
@@ -96,7 +96,7 @@ def test_deleted_reflects_staged_deletes(mongo_engine: "MongoClient"):
         assert session.deleted[0] is user
 
 
-def test_deleted_empty_after_flush(mongo_engine: "MongoClient"):
+def test_deleted_empty_after_flush(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Frank", company=test_company, age=28)
@@ -107,7 +107,7 @@ def test_deleted_empty_after_flush(mongo_engine: "MongoClient"):
         assert session.deleted == []
 
 
-def test_state_properties_return_shallow_copies(mongo_engine: "MongoClient"):
+def test_state_properties_return_shallow_copies(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Grace", company=test_company, age=33)

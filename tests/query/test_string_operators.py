@@ -2,7 +2,7 @@
 like, ilike, contains, startswith, endswith.
 """
 
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -20,9 +20,9 @@ class StrUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "str_user"
 
-    tag: Text = Field(...)
-    name: Text = Field(...)
-    email: Optional[Text] = Field(None)
+    tag: str = Field(...)
+    name: str = Field(...)
+    email: Optional[str] = Field(None)
 
 
 # ---------------------------------------------------------------------------
@@ -30,47 +30,47 @@ class StrUser(MongoBaseModel):
 # ---------------------------------------------------------------------------
 
 
-def test_like_prefix_shape():
+def test_like_prefix_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.like("Al%")])
     assert result == {"name": {"$regex": "^Al.*$"}}
 
 
-def test_like_suffix_shape():
+def test_like_suffix_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.like("%son")])
     assert result == {"name": {"$regex": "^.*son$"}}
 
 
-def test_like_middle_shape():
+def test_like_middle_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.like("%li%")])
     assert result == {"name": {"$regex": "^.*li.*$"}}
 
 
-def test_like_single_wildcard():
+def test_like_single_wildcard() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.like("A_ice")])
     assert result == {"name": {"$regex": "^A.ice$"}}
 
 
-def test_ilike_adds_options():
+def test_ilike_adds_options() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.ilike("al%")])
     assert result == {"name": {"$regex": "^al.*$", "$options": "i"}}
 
 
-def test_contains_escapes_special_chars():
+def test_contains_escapes_special_chars() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.email.contains("@gmail.com")])
     assert result == {"email": {"$regex": r"@gmail\.com"}}
 
 
-def test_startswith_shape():
+def test_startswith_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.startswith("Al")])
     assert result == {"name": {"$regex": "^Al"}}
 
 
-def test_endswith_shape():
+def test_endswith_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([StrUser.name.endswith("son")])
     assert result == {"name": {"$regex": "son$"}}
 
 
-def test_string_op_composes_with_or():
+def test_string_op_composes_with_or() -> None:
     f = or_(StrUser.name.startswith("Al"), StrUser.name.startswith("Bo"))
     result = f.to_mongo_filter()
     assert result == {"$or": [{"name": {"$regex": "^Al"}}, {"name": {"$regex": "^Bo"}}]}
@@ -101,7 +101,7 @@ def seed_and_cleanup(mongo_engine: MongoClient):
     session2.commit()
 
 
-def test_like_prefix(mongo_engine: MongoClient):
+def test_like_prefix(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -111,7 +111,7 @@ def test_like_prefix(mongo_engine: MongoClient):
     assert {u.name for u in results} == {"Alice", "Alison"}
 
 
-def test_ilike_prefix(mongo_engine: MongoClient):
+def test_ilike_prefix(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -121,7 +121,7 @@ def test_ilike_prefix(mongo_engine: MongoClient):
     assert {u.name for u in results} == {"Alice", "Alison"}
 
 
-def test_contains(mongo_engine: MongoClient):
+def test_contains(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -131,7 +131,7 @@ def test_contains(mongo_engine: MongoClient):
     assert {u.name for u in results} == {"Alice", "Alison", "Charlie"}
 
 
-def test_startswith(mongo_engine: MongoClient):
+def test_startswith(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -140,7 +140,7 @@ def test_startswith(mongo_engine: MongoClient):
     assert len(results) == 2
 
 
-def test_endswith(mongo_engine: MongoClient):
+def test_endswith(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -150,7 +150,7 @@ def test_endswith(mongo_engine: MongoClient):
     assert results[0].name == "Alice"
 
 
-def test_like_no_wildcard(mongo_engine: MongoClient):
+def test_like_no_wildcard(mongo_engine: MongoClient) -> None:
     """Exact match when pattern has no wildcards."""
     Session = sessionmaker(bind=mongo_engine)
     session = Session()

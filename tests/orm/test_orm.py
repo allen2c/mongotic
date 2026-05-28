@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -17,21 +17,21 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user"
 
-    name: Text = Field(..., max_length=50)
-    email: Text = Field(...)
-    company: Optional[Text] = Field(None, max_length=50)
+    name: str = Field(..., max_length=50)
+    email: str = Field(...)
+    company: Optional[str] = Field(None, max_length=50)
     age: Optional[int] = Field(None, ge=0, le=200)
     created_at: Optional[datetime] = Field(..., default_factory=utc_now)
     updated_at: Optional[datetime] = Field(..., default_factory=utc_now)
 
 
-def test_session_maker(mongo_engine: "MongoClient"):
+def test_session_maker(mongo_engine: "MongoClient") -> None:
     Session_1 = sessionmaker(bind=mongo_engine)
     Session_2 = sessionmaker(bind=mongo_engine)
     assert (Session_1() == Session_2()) is False
 
 
-def test_add_operation(mongo_engine: "MongoClient"):
+def test_add_operation(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -43,7 +43,7 @@ def test_add_operation(mongo_engine: "MongoClient"):
     assert new_user._id is not None
 
 
-def test_add_all_operation(mongo_engine: "MongoClient"):
+def test_add_all_operation(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -56,7 +56,7 @@ def test_add_all_operation(mongo_engine: "MongoClient"):
     assert all(u._id is not None for u in users)
 
 
-def test_scalars_all(mongo_engine: "MongoClient"):
+def test_scalars_all(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -68,7 +68,7 @@ def test_scalars_all(mongo_engine: "MongoClient"):
     assert len(users) > 0
 
 
-def test_scalars_first(mongo_engine: "MongoClient"):
+def test_scalars_first(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -81,7 +81,7 @@ def test_scalars_first(mongo_engine: "MongoClient"):
     assert missing is None
 
 
-def test_scalars_filter(mongo_engine: "MongoClient"):
+def test_scalars_filter(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -96,7 +96,7 @@ def test_scalars_filter(mongo_engine: "MongoClient"):
     assert len(users) == 0
 
 
-def test_scalars_count_and_exists(mongo_engine: "MongoClient"):
+def test_scalars_count_and_exists(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -113,7 +113,7 @@ def test_scalars_count_and_exists(mongo_engine: "MongoClient"):
 
 
 @pytest.mark.cosmos_unsupported
-def test_scalars_order_by_and_limit(mongo_engine: "MongoClient"):
+def test_scalars_order_by_and_limit(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -123,7 +123,7 @@ def test_scalars_order_by_and_limit(mongo_engine: "MongoClient"):
     assert len(users) <= 2
 
 
-def test_get(mongo_engine: "MongoClient"):
+def test_get(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -138,7 +138,7 @@ def test_get(mongo_engine: "MongoClient"):
     assert missing is None
 
 
-def test_update_via_setattr(mongo_engine: "MongoClient"):
+def test_update_via_setattr(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -149,7 +149,7 @@ def test_update_via_setattr(mongo_engine: "MongoClient"):
     session.commit()
 
 
-def test_context_manager_and_flush(mongo_engine: "MongoClient"):
+def test_context_manager_and_flush(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
 
     with Session() as session:
@@ -162,7 +162,7 @@ def test_context_manager_and_flush(mongo_engine: "MongoClient"):
         session.commit()
 
 
-def test_scalars_one(mongo_engine: "MongoClient"):
+def test_scalars_one(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -181,7 +181,7 @@ def test_scalars_one(mongo_engine: "MongoClient"):
         session.scalars(select(User).where(User.company == test_company)).one()
 
 
-def test_scalars_one_or_none(mongo_engine: "MongoClient"):
+def test_scalars_one_or_none(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -205,7 +205,7 @@ def test_scalars_one_or_none(mongo_engine: "MongoClient"):
         session.scalars(select(User).where(User.company == test_company)).one_or_none()
 
 
-def test_execute_bulk_update(mongo_engine: "MongoClient"):
+def test_execute_bulk_update(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -224,7 +224,7 @@ def test_execute_bulk_update(mongo_engine: "MongoClient"):
     assert len(users) == count
 
 
-def test_execute_bulk_delete(mongo_engine: "MongoClient"):
+def test_execute_bulk_delete(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -252,7 +252,7 @@ def test_execute_bulk_delete(mongo_engine: "MongoClient"):
     assert count_after == 0
 
 
-def test_delete_operation(mongo_engine: "MongoClient"):
+def test_delete_operation(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 

@@ -22,6 +22,7 @@ dev = [
     "black",
     "isort",
     "mkdocs-material",
+    "pyright",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
@@ -63,6 +64,19 @@ line-length = 88
 
 [tool.ruff.lint]
 ignore = ["E501"]
+
+[tool.pyright]
+include = ["mongotic", "tests"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportArgumentType = "error"
+reportGeneralTypeIssues = "error"
+reportReturnType = "error"
+# Known limitation: Pydantic-declared fields are statically typed as their value type
+# (e.g. `str`), so `Model.field.in_(...)` / `.like(...)` / `.between(...)` warn. The
+# `.where(*conditions: bool | FilterType)` signature loosening accepts the common
+# `Model.field == "x"` pattern; full IDE support for the rest is planned for v0.6.0
+# via a Mapped[T] descriptor.
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]

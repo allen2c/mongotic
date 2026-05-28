@@ -1,10 +1,11 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
+from pymongo import AsyncMongoClient
 
 from mongotic import insert, select, update
-from mongotic.asyncio import async_sessionmaker
+from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
 
@@ -13,17 +14,17 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_lifecycle_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
 
-async def test_expunge_removes_pending_updates(async_session):
+async def test_expunge_removes_pending_updates(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"exp_{token}", "age": 10}]))
@@ -35,7 +36,7 @@ async def test_expunge_removes_pending_updates(async_session):
     assert u._session is None
 
 
-async def test_expunge_is_idempotent(async_session):
+async def test_expunge_is_idempotent(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"idemp_{token}"}]))
@@ -44,7 +45,7 @@ async def test_expunge_is_idempotent(async_session):
     s.expunge(u)  # must not raise
 
 
-async def test_expunge_then_readd(async_session):
+async def test_expunge_then_readd(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"re_{token}"}]))
@@ -54,7 +55,7 @@ async def test_expunge_then_readd(async_session):
     assert s.new == [u]
 
 
-async def test_expire_clears_pending_updates(async_session):
+async def test_expire_clears_pending_updates(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"exp_{token}", "age": 10}]))
@@ -66,7 +67,9 @@ async def test_expire_clears_pending_updates(async_session):
     assert getattr(u, "_expired", False) is True
 
 
-async def test_expire_does_not_reload_until_refresh(async_session):
+async def test_expire_does_not_reload_until_refresh(
+    async_session: AsyncSession,
+) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"reload_{token}", "age": 10}]))
@@ -78,7 +81,7 @@ async def test_expire_does_not_reload_until_refresh(async_session):
     assert u.age == 42
 
 
-async def test_yield_per_is_chainable_and_noop(async_session):
+async def test_yield_per_is_chainable_and_noop(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     names = [f"yp_{token}_{i}" for i in range(3)]

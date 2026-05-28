@@ -1,4 +1,4 @@
-from typing import Any, MutableMapping, Optional, Text, Type
+from typing import Any, MutableMapping, Optional, Type
 
 from bson.codec_options import TypeRegistry
 from pymongo import AsyncMongoClient
@@ -7,7 +7,7 @@ from mongotic.model import MongoBaseModel
 
 
 def create_async_engine(
-    host: Optional[Text] = None,
+    host: Optional[str] = None,
     port: Optional[int] = None,
     document_class: Optional[Type[MutableMapping]] = None,
     tz_aware: Optional[bool] = None,

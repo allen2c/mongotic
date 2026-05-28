@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Text
+from typing import Optional
 
 from pydantic import Field
 from pymongo import MongoClient
@@ -19,15 +19,15 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user"
 
-    name: Text = Field(..., max_length=50)
-    email: Text = Field(...)
-    company: Optional[Text] = Field(None, max_length=50)
+    name: str = Field(..., max_length=50)
+    email: str = Field(...)
+    company: Optional[str] = Field(None, max_length=50)
     age: Optional[int] = Field(None, ge=0, le=200)
     created_at: Optional[datetime] = Field(..., default_factory=utc_now)
     updated_at: Optional[datetime] = Field(..., default_factory=utc_now)
 
 
-def test_init_documents(mongo_engine: "MongoClient"):
+def test_init_documents(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -41,7 +41,7 @@ def test_init_documents(mongo_engine: "MongoClient"):
     session.commit()
 
 
-def test_query_filter_operators(mongo_engine: "MongoClient"):
+def test_query_filter_operators(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -120,7 +120,7 @@ def test_query_filter_operators(mongo_engine: "MongoClient"):
     assert len(users) > 0
 
 
-def test_clean_documents(mongo_engine: "MongoClient"):
+def test_clean_documents(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 

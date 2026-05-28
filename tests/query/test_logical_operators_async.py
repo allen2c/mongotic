@@ -1,12 +1,11 @@
 """Async smoke tests for or_(), and_(), not_() logical combinators via AsyncSession."""
 
-from typing import Text
-
 import pytest
 from pydantic import Field
+from pymongo import AsyncMongoClient
 
 from mongotic import and_, insert, not_, or_, select
-from mongotic.asyncio import async_sessionmaker
+from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
 
@@ -23,13 +22,13 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_logic_{rand_str(8)}"
 
-    tag: Text = Field(...)
-    role: Text = Field(...)
+    tag: str = Field(...)
+    role: str = Field(...)
     age: int = Field(...)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
@@ -51,7 +50,7 @@ async def seed_and_cleanup(async_mongo_engine):
     await async_mongo_engine["test"][_U.__tablename__].delete_many({"tag": _TAG})
 
 
-async def test_or_query(async_session):
+async def test_or_query(async_session: AsyncSession) -> None:
     s = async_session
     results = await s.scalars(
         select(_U).where(
@@ -64,7 +63,7 @@ async def test_or_query(async_session):
     assert roles == {ROLE_ADMIN, ROLE_MOD}
 
 
-async def test_and_query(async_session):
+async def test_and_query(async_session: AsyncSession) -> None:
     s = async_session
     results = await s.scalars(
         select(_U).where(
@@ -76,7 +75,7 @@ async def test_and_query(async_session):
     assert results[0].role == ROLE_ADMIN
 
 
-async def test_not_single_query(async_session):
+async def test_not_single_query(async_session: AsyncSession) -> None:
     s = async_session
     results = await s.scalars(
         select(_U).where(
@@ -88,7 +87,7 @@ async def test_not_single_query(async_session):
     assert all(u.role != ROLE_GUEST for u in results)
 
 
-async def test_not_or_nor_query(async_session):
+async def test_not_or_nor_query(async_session: AsyncSession) -> None:
     s = async_session
     results = await s.scalars(
         select(_U).where(
@@ -100,7 +99,7 @@ async def test_not_or_nor_query(async_session):
     assert all(u.role in {ROLE_ADMIN, ROLE_MOD} for u in results)
 
 
-async def test_nested_composition_query(async_session):
+async def test_nested_composition_query(async_session: AsyncSession) -> None:
     s = async_session
     results = await s.scalars(
         select(_U).where(

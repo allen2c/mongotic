@@ -1,4 +1,4 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -16,8 +16,8 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user_iter"
 
-    name: Text = Field(...)
-    company: Optional[Text] = Field(None)
+    name: str = Field(...)
+    company: Optional[str] = Field(None)
     age: Optional[int] = Field(None)
 
 
@@ -37,7 +37,7 @@ def seed(mongo_engine: "MongoClient"):
     mongo_engine["test"]["user_iter"].delete_many({"company": test_company})
 
 
-def test_iter_for_loop(mongo_engine: "MongoClient"):
+def test_iter_for_loop(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         stmt = select(User).where(User.company == test_company)
@@ -47,7 +47,7 @@ def test_iter_for_loop(mongo_engine: "MongoClient"):
         assert set(names) == {"Alice", "Bob", "Carol"}
 
 
-def test_iter_list_comprehension(mongo_engine: "MongoClient"):
+def test_iter_list_comprehension(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         stmt = select(User).where(User.company == test_company)
@@ -55,7 +55,7 @@ def test_iter_list_comprehension(mongo_engine: "MongoClient"):
         assert set(names) == {"Alice", "Bob", "Carol"}
 
 
-def test_iter_multiple_times_same_result(mongo_engine: "MongoClient"):
+def test_iter_multiple_times_same_result(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         stmt = select(User).where(User.company == test_company)
@@ -65,7 +65,7 @@ def test_iter_multiple_times_same_result(mongo_engine: "MongoClient"):
         assert set(names_first) == set(names_second)
 
 
-def test_iter_yields_hydrated_instances(mongo_engine: "MongoClient"):
+def test_iter_yields_hydrated_instances(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         stmt = select(User).where(User.company == test_company)
@@ -75,7 +75,7 @@ def test_iter_yields_hydrated_instances(mongo_engine: "MongoClient"):
             assert user._session is session
 
 
-def test_iter_coexists_with_all(mongo_engine: "MongoClient"):
+def test_iter_coexists_with_all(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         stmt = select(User).where(User.company == test_company)

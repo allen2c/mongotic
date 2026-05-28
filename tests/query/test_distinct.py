@@ -1,7 +1,5 @@
 """Integration tests for Select.distinct() (MGT-024)."""
 
-from typing import Text
-
 import pytest
 from pydantic import Field
 from pymongo import MongoClient
@@ -18,9 +16,9 @@ class DistUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "dist_user"
 
-    tag: Text = Field(...)
-    role: Text = Field(...)
-    dept: Text = Field(...)
+    tag: str = Field(...)
+    role: str = Field(...)
+    dept: str = Field(...)
 
 
 # ---------------------------------------------------------------------------
@@ -28,7 +26,7 @@ class DistUser(MongoBaseModel):
 # ---------------------------------------------------------------------------
 
 
-def test_distinct_sets_field():
+def test_distinct_sets_field() -> None:
     from mongotic.query import select as select_fn
 
     stmt = select_fn(DistUser).distinct(DistUser.role)
@@ -36,7 +34,7 @@ def test_distinct_sets_field():
     assert stmt._distinct_field.field_name == "role"
 
 
-def test_distinct_is_chainable():
+def test_distinct_is_chainable() -> None:
     stmt = select(DistUser).where(DistUser.tag == "x").distinct(DistUser.role)
     assert stmt._distinct_field.field_name == "role"
     assert len(stmt._filters) == 1
@@ -67,7 +65,7 @@ def seed_and_cleanup(mongo_engine: MongoClient):
     session2.commit()
 
 
-def test_distinct_all_values(mongo_engine: MongoClient):
+def test_distinct_all_values(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     roles = session.scalars(
@@ -76,7 +74,7 @@ def test_distinct_all_values(mongo_engine: MongoClient):
     assert sorted(roles) == ["admin", "guest", "member"]
 
 
-def test_distinct_with_filter(mongo_engine: MongoClient):
+def test_distinct_with_filter(mongo_engine: MongoClient) -> None:
     """distinct filtered by dept==eng should exclude hr admin."""
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
@@ -88,7 +86,7 @@ def test_distinct_with_filter(mongo_engine: MongoClient):
     assert sorted(roles) == ["admin", "guest", "member"]
 
 
-def test_distinct_single_result(mongo_engine: MongoClient):
+def test_distinct_single_result(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     depts = session.scalars(

@@ -1,7 +1,8 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
+from pymongo import MongoClient
 
 from mongotic import insert, select
 from mongotic.model import MongoBaseModel
@@ -14,7 +15,7 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"projection_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
@@ -28,41 +29,41 @@ def _seed(mongo_engine, items):
     return s
 
 
-def test_row_attr_access():
+def test_row_attr_access() -> None:
     row = Row(("alice", "a@x"), ("name", "email"))
     assert row.name == "alice"
     assert row.email == "a@x"
 
 
-def test_row_index_access():
+def test_row_index_access() -> None:
     row = Row(("alice", "a@x"), ("name", "email"))
     assert row[0] == "alice"
     assert row[1] == "a@x"
 
 
-def test_row_key_access():
+def test_row_key_access() -> None:
     row = Row(("alice", "a@x"), ("name", "email"))
     assert row["name"] == "alice"
     assert row["email"] == "a@x"
 
 
-def test_row_asdict():
+def test_row_asdict() -> None:
     row = Row(("alice", "a@x"), ("name", "email"))
     assert row._asdict() == {"name": "alice", "email": "a@x"}
 
 
-def test_row_iter_and_len():
+def test_row_iter_and_len() -> None:
     row = Row(("alice", "a@x"), ("name", "email"))
     assert list(row) == ["alice", "a@x"]
     assert len(row) == 2
 
 
-def test_row_repr():
+def test_row_repr() -> None:
     row = Row(("alice",), ("name",))
     assert "Row" in repr(row) and "alice" in repr(row)
 
 
-def test_row_is_immutable():
+def test_row_is_immutable() -> None:
     row = Row(("alice",), ("name",))
     with pytest.raises(AttributeError):
         row.name = "bob"
@@ -71,7 +72,7 @@ def test_row_is_immutable():
 # ── projection integration tests ─────────────────────────────────────────────
 
 
-def test_execute_select_returns_select_result(mongo_engine):
+def test_execute_select_returns_select_result(mongo_engine: MongoClient) -> None:
     token = rand_str(6)
     s = _seed(
         mongo_engine,
@@ -92,7 +93,7 @@ def test_execute_select_returns_select_result(mongo_engine):
     ]
 
 
-def test_projection_drops_id_by_default(mongo_engine):
+def test_projection_drops_id_by_default(mongo_engine: MongoClient) -> None:
     token = rand_str(6)
     s = _seed(mongo_engine, [{"name": f"k_{token}"}])
     row = s.execute(select(_U.name).where(_U.name == f"k_{token}")).first()
@@ -100,7 +101,7 @@ def test_projection_drops_id_by_default(mongo_engine):
         _ = row._id
 
 
-def test_scalars_unwraps_single_column(mongo_engine):
+def test_scalars_unwraps_single_column(mongo_engine: MongoClient) -> None:
     token = rand_str(6)
     s = _seed(
         mongo_engine,
@@ -112,35 +113,35 @@ def test_scalars_unwraps_single_column(mongo_engine):
     assert sorted(names) == sorted([f"x_{token}", f"y_{token}"])
 
 
-def test_scalars_rejects_multi_column(mongo_engine):
+def test_scalars_rejects_multi_column(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     with pytest.raises(TypeError):
         s.scalars(select(_U.name, _U.age))
 
 
-def test_mixed_entities_raise():
+def test_mixed_entities_raise() -> None:
     with pytest.raises(TypeError):
         select(_U, _U.name)
 
 
-def test_select_no_args_raises():
+def test_select_no_args_raises() -> None:
     with pytest.raises(TypeError):
         select()
 
 
-def test_scalar_returns_single_value(mongo_engine):
+def test_scalar_returns_single_value(mongo_engine: MongoClient) -> None:
     token = rand_str(6)
     s = _seed(mongo_engine, [{"name": f"sc_{token}", "age": 10}])
     name = s.scalar(select(_U.name).where(_U.name == f"sc_{token}"))
     assert name == f"sc_{token}"
 
 
-def test_scalar_returns_none_when_empty(mongo_engine):
+def test_scalar_returns_none_when_empty(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     assert s.scalar(select(_U.name).where(_U.name == "ghost_does_not_exist")) is None
 
 
-def test_scalar_returns_first_for_full_model(mongo_engine):
+def test_scalar_returns_first_for_full_model(mongo_engine: MongoClient) -> None:
     token = rand_str(6)
     s = _seed(mongo_engine, [{"name": f"fm_{token}"}])
     obj = s.scalar(select(_U).where(_U.name == f"fm_{token}"))

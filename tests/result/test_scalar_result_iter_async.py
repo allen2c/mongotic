@@ -1,10 +1,11 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
+from pymongo import AsyncMongoClient
 
 from mongotic import insert, select
-from mongotic.asyncio import async_sessionmaker
+from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
 
@@ -15,13 +16,13 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_iter_{rand_str(8)}"
 
-    name: Text = Field(...)
-    tag: Optional[Text] = Field(None)
+    name: str = Field(...)
+    tag: Optional[str] = Field(None)
     age: Optional[int] = Field(None)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
@@ -43,7 +44,7 @@ async def seed(async_mongo_engine):
     await async_mongo_engine["test"][_U.__tablename__].delete_many({"tag": _TAG})
 
 
-async def test_async_for_loop(async_session):
+async def test_async_for_loop(async_session: AsyncSession) -> None:
     s = async_session
     stmt = select(_U).where(_U.tag == _TAG)
     names = []
@@ -52,7 +53,7 @@ async def test_async_for_loop(async_session):
     assert set(names) == {"Alice", "Bob", "Carol"}
 
 
-async def test_all_returns_list(async_session):
+async def test_all_returns_list(async_session: AsyncSession) -> None:
     s = async_session
     stmt = select(_U).where(_U.tag == _TAG)
     users = await s.scalars(stmt).all()
@@ -60,7 +61,7 @@ async def test_all_returns_list(async_session):
     assert all(isinstance(u, _U) for u in users)
 
 
-async def test_first_returns_one(async_session):
+async def test_first_returns_one(async_session: AsyncSession) -> None:
     s = async_session
     stmt = select(_U).where(_U.tag == _TAG)
     first = await s.scalars(stmt).first()
@@ -68,7 +69,7 @@ async def test_first_returns_one(async_session):
     assert isinstance(first, _U)
 
 
-async def test_one_or_none_returns_none_on_empty(async_session):
+async def test_one_or_none_returns_none_on_empty(async_session: AsyncSession) -> None:
     s = async_session
     result = await s.scalars(
         select(_U).where(_U.name == "ghost_zzz_not_exist")
@@ -76,18 +77,18 @@ async def test_one_or_none_returns_none_on_empty(async_session):
     assert result is None
 
 
-async def test_count(async_session):
+async def test_count(async_session: AsyncSession) -> None:
     s = async_session
     n = await s.scalars(select(_U).where(_U.tag == _TAG)).count()
     assert n == 3
 
 
-async def test_exists_true(async_session):
+async def test_exists_true(async_session: AsyncSession) -> None:
     s = async_session
     assert await s.scalars(select(_U).where(_U.tag == _TAG)).exists() is True
 
 
-async def test_exists_false(async_session):
+async def test_exists_false(async_session: AsyncSession) -> None:
     s = async_session
     assert (
         await s.scalars(select(_U).where(_U.name == "ghost_zzz_not_exist")).exists()
@@ -95,7 +96,7 @@ async def test_exists_false(async_session):
     )
 
 
-async def test_iter_yields_hydrated_instances(async_session):
+async def test_iter_yields_hydrated_instances(async_session: AsyncSession) -> None:
     s = async_session
     async for user in s.scalars(select(_U).where(_U.tag == _TAG)):
         assert isinstance(user, _U)

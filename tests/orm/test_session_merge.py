@@ -1,4 +1,4 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from bson import ObjectId
@@ -16,8 +16,8 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user_merge"
 
-    name: Text = Field(...)
-    company: Optional[Text] = Field(None)
+    name: str = Field(...)
+    company: Optional[str] = Field(None)
     age: Optional[int] = Field(None)
 
 
@@ -27,7 +27,7 @@ def cleanup(mongo_engine: "MongoClient"):
     mongo_engine["test"]["user_merge"].delete_many({"company": test_company})
 
 
-def test_merge_without_id_behaves_like_add(mongo_engine: "MongoClient"):
+def test_merge_without_id_behaves_like_add(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Alice", company=test_company, age=25)
@@ -44,7 +44,7 @@ def test_merge_without_id_behaves_like_add(mongo_engine: "MongoClient"):
         assert doc["age"] == 25
 
 
-def test_merge_with_existing_id_updates_document(mongo_engine: "MongoClient"):
+def test_merge_with_existing_id_updates_document(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         # Insert initial document
@@ -70,7 +70,9 @@ def test_merge_with_existing_id_updates_document(mongo_engine: "MongoClient"):
         assert merged._id == existing_id
 
 
-def test_merge_with_nonexistent_id_inserts_document(mongo_engine: "MongoClient"):
+def test_merge_with_nonexistent_id_inserts_document(
+    mongo_engine: "MongoClient",
+) -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         fake_id = str(ObjectId())  # valid ObjectId that doesn't exist in DB
@@ -86,7 +88,7 @@ def test_merge_with_nonexistent_id_inserts_document(mongo_engine: "MongoClient")
         assert doc["name"] == "Carol"
 
 
-def test_merge_binds_session(mongo_engine: "MongoClient"):
+def test_merge_binds_session(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Dave", company=test_company, age=40)
@@ -94,7 +96,7 @@ def test_merge_binds_session(mongo_engine: "MongoClient"):
         assert merged._session is session
 
 
-def test_merge_clears_pending_updates_for_instance(mongo_engine: "MongoClient"):
+def test_merge_clears_pending_updates_for_instance(mongo_engine: "MongoClient") -> None:
     """Merging a dirty instance should discard pending field updates to avoid
     redundant update_one + replace_one writes on flush."""
     Session = sessionmaker(bind=mongo_engine)
@@ -116,7 +118,7 @@ def test_merge_clears_pending_updates_for_instance(mongo_engine: "MongoClient"):
         assert doc["age"] == 21  # the in-memory value was persisted
 
 
-def test_merge_staging_cleared_after_flush(mongo_engine: "MongoClient"):
+def test_merge_staging_cleared_after_flush(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Eve", company=test_company, age=22)

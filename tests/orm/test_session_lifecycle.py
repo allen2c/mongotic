@@ -1,6 +1,7 @@
-from typing import Optional, Text
+from typing import Optional
 
 from pydantic import Field
+from pymongo import MongoClient
 
 from mongotic import insert, select, update
 from mongotic.model import MongoBaseModel
@@ -12,7 +13,7 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"lifecycle_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
@@ -20,7 +21,7 @@ def _s(mongo_engine):
     return sessionmaker(bind=mongo_engine)()
 
 
-def test_expunge_removes_pending_updates(mongo_engine):
+def test_expunge_removes_pending_updates(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     token = rand_str(6)
     s.execute(insert(_U).values([{"name": f"exp_{token}", "age": 10}]))
@@ -32,7 +33,7 @@ def test_expunge_removes_pending_updates(mongo_engine):
     assert u._session is None
 
 
-def test_expunge_is_idempotent(mongo_engine):
+def test_expunge_is_idempotent(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     token = rand_str(6)
     s.execute(insert(_U).values([{"name": f"idemp_{token}"}]))
@@ -41,7 +42,7 @@ def test_expunge_is_idempotent(mongo_engine):
     s.expunge(u)  # must not raise
 
 
-def test_expunge_then_readd(mongo_engine):
+def test_expunge_then_readd(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     token = rand_str(6)
     s.execute(insert(_U).values([{"name": f"re_{token}"}]))
@@ -51,7 +52,7 @@ def test_expunge_then_readd(mongo_engine):
     assert s.new == [u]
 
 
-def test_expire_clears_pending_updates(mongo_engine):
+def test_expire_clears_pending_updates(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     token = rand_str(6)
     s.execute(insert(_U).values([{"name": f"exp_{token}", "age": 10}]))
@@ -64,7 +65,7 @@ def test_expire_clears_pending_updates(mongo_engine):
     assert getattr(u, "_expired", False) is True
 
 
-def test_expire_does_not_reload_until_refresh(mongo_engine):
+def test_expire_does_not_reload_until_refresh(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     token = rand_str(6)
     s.execute(insert(_U).values([{"name": f"reload_{token}", "age": 10}]))
@@ -77,7 +78,7 @@ def test_expire_does_not_reload_until_refresh(mongo_engine):
     assert u.age == 42
 
 
-def test_yield_per_is_chainable_and_noop(mongo_engine):
+def test_yield_per_is_chainable_and_noop(mongo_engine: MongoClient) -> None:
     s = _s(mongo_engine)
     token = rand_str(6)
     names = [f"yp_{token}_{i}" for i in range(3)]

@@ -5,7 +5,7 @@ MongoDB behaviour:
   - ``{"field": {"$ne": null}}``  matches documents where field exists and is not null.
 """
 
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -23,9 +23,9 @@ class NullUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "null_user"
 
-    tag: Text = Field(...)
-    name: Text = Field(...)
-    email: Optional[Text] = Field(None)
+    tag: str = Field(...)
+    name: str = Field(...)
+    email: Optional[str] = Field(None)
 
 
 # ---------------------------------------------------------------------------
@@ -33,31 +33,31 @@ class NullUser(MongoBaseModel):
 # ---------------------------------------------------------------------------
 
 
-def test_is_none_returns_equal_operator():
+def test_is_none_returns_equal_operator() -> None:
     op = NullUser.email.is_(None)
     assert isinstance(op, ModelFieldOperation)
     assert op.operation == Operator.EQUAL
     assert op.value is None
 
 
-def test_is_not_none_returns_not_equal_operator():
+def test_is_not_none_returns_not_equal_operator() -> None:
     op = NullUser.email.is_not(None)
     assert isinstance(op, ModelFieldOperation)
     assert op.operation == Operator.NOT_EQUAL
     assert op.value is None
 
 
-def test_is_none_filter_shape():
+def test_is_none_filter_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([NullUser.email.is_(None)])
     assert result == {"email": {"$eq": None}}
 
 
-def test_is_not_none_filter_shape():
+def test_is_not_none_filter_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([NullUser.email.is_not(None)])
     assert result == {"email": {"$ne": None}}
 
 
-def test_is_none_composes_with_or():
+def test_is_none_composes_with_or() -> None:
     f = or_(NullUser.email.is_(None), NullUser.email == "fallback@example.com")
     result = f.to_mongo_filter()
     assert result == {
@@ -68,7 +68,7 @@ def test_is_none_composes_with_or():
     }
 
 
-def test_is_not_none_composes_with_not():
+def test_is_not_none_composes_with_not() -> None:
     # not_(email.is_not(None)) → field-level $not on $ne
     f = not_(NullUser.email.is_not(None))
     result = f.to_mongo_filter()
@@ -101,7 +101,7 @@ def seed_and_cleanup(mongo_engine: MongoClient):
     session2.commit()
 
 
-def test_is_none_query(mongo_engine: MongoClient):
+def test_is_none_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -115,7 +115,7 @@ def test_is_none_query(mongo_engine: MongoClient):
     assert results[0].name == "bob"
 
 
-def test_is_not_none_query(mongo_engine: MongoClient):
+def test_is_not_none_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -130,7 +130,7 @@ def test_is_not_none_query(mongo_engine: MongoClient):
     assert names == {"alice", "carol"}
 
 
-def test_is_none_with_or(mongo_engine: MongoClient):
+def test_is_none_with_or(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -145,7 +145,7 @@ def test_is_none_with_or(mongo_engine: MongoClient):
     assert names == {"alice", "bob"}
 
 
-def test_is_not_none_with_and(mongo_engine: MongoClient):
+def test_is_not_none_with_and(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 

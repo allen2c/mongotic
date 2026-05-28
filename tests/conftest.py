@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Generator
+from typing import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
@@ -50,7 +50,7 @@ def mongo_engine() -> Generator["MongoClient", None, None]:
 
 
 @pytest_asyncio.fixture
-async def async_mongo_engine():
+async def async_mongo_engine() -> AsyncGenerator[AsyncMongoClient, None]:
     if "MONGODB_URI" not in os.environ:
         raise Exception("Testing MONGODB_URI environment variable not set.")
     engine = AsyncMongoClient(os.environ["MONGODB_URI"])

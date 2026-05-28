@@ -1,7 +1,5 @@
 """Integration tests for or_(), and_(), not_() logical combinators (MGT-018)."""
 
-from typing import Text
-
 import pytest
 from pydantic import Field
 from pymongo import MongoClient
@@ -25,8 +23,8 @@ class LogicUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "logic_user"
 
-    tag: Text = Field(...)  # isolates this test run
-    role: Text = Field(...)
+    tag: str = Field(...)  # isolates this test run
+    role: str = Field(...)
     age: int = Field(...)
 
 
@@ -35,7 +33,7 @@ class LogicUser(MongoBaseModel):
 # ---------------------------------------------------------------------------
 
 
-def test_or_filter_shape():
+def test_or_filter_shape() -> None:
     f = or_(LogicUser.role == ROLE_ADMIN, LogicUser.role == ROLE_MOD)
     assert isinstance(f, CompoundFilter)
     result = f.to_mongo_filter()
@@ -47,7 +45,7 @@ def test_or_filter_shape():
     }
 
 
-def test_and_filter_shape():
+def test_and_filter_shape() -> None:
     f = and_(LogicUser.age >= AGE_ADULT, LogicUser.role == ROLE_ADMIN)
     result = f.to_mongo_filter()
     assert result == {
@@ -58,13 +56,13 @@ def test_and_filter_shape():
     }
 
 
-def test_not_single_op_shape():
+def test_not_single_op_shape() -> None:
     f = not_(LogicUser.role == ROLE_GUEST)
     result = f.to_mongo_filter()
     assert result == {"role": {"$not": {"$eq": ROLE_GUEST}}}
 
 
-def test_not_or_produces_nor():
+def test_not_or_produces_nor() -> None:
     f = not_(or_(LogicUser.role == ROLE_GUEST, LogicUser.role == "anonymous"))
     result = f.to_mongo_filter()
     assert result == {
@@ -75,7 +73,7 @@ def test_not_or_produces_nor():
     }
 
 
-def test_nested_and_or_shape():
+def test_nested_and_or_shape() -> None:
     f = and_(
         or_(LogicUser.role == ROLE_ADMIN, LogicUser.role == ROLE_MOD),
         LogicUser.age >= AGE_ADULT,
@@ -89,7 +87,7 @@ def test_nested_and_or_shape():
     }
 
 
-def test_to_mongo_filter_mixed_list():
+def test_to_mongo_filter_mixed_list() -> None:
     """Implicit-AND of simple ops and a CompoundFilter at top level."""
     ops = [
         LogicUser.age >= AGE_ADULT,
@@ -129,7 +127,7 @@ def seed_and_cleanup(mongo_engine: MongoClient):
     session2.commit()
 
 
-def test_or_query(mongo_engine: MongoClient):
+def test_or_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -144,7 +142,7 @@ def test_or_query(mongo_engine: MongoClient):
     assert roles == {ROLE_ADMIN, ROLE_MOD}
 
 
-def test_and_query(mongo_engine: MongoClient):
+def test_and_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -158,7 +156,7 @@ def test_and_query(mongo_engine: MongoClient):
     assert results[0].role == ROLE_ADMIN
 
 
-def test_not_single_query(mongo_engine: MongoClient):
+def test_not_single_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -172,7 +170,7 @@ def test_not_single_query(mongo_engine: MongoClient):
     assert all(u.role != ROLE_GUEST for u in results)
 
 
-def test_not_or_nor_query(mongo_engine: MongoClient):
+def test_not_or_nor_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -187,7 +185,7 @@ def test_not_or_nor_query(mongo_engine: MongoClient):
     assert all(u.role in {ROLE_ADMIN, ROLE_MOD} for u in results)
 
 
-def test_nested_composition_query(mongo_engine: MongoClient):
+def test_nested_composition_query(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
 
@@ -204,7 +202,7 @@ def test_nested_composition_query(mongo_engine: MongoClient):
     assert len(results) == 2
 
 
-def test_existing_implicit_and_unchanged(mongo_engine: MongoClient):
+def test_existing_implicit_and_unchanged(mongo_engine: MongoClient) -> None:
     """Multiple simple ops in .where() still behave as implicit AND."""
     Session = sessionmaker(bind=mongo_engine)
     session = Session()

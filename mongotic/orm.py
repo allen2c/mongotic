@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+from types import TracebackType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -10,14 +11,16 @@ from typing import (
     List,
     Optional,
     Protocol,
-    Text,
     Tuple,
     Type,
     TypeVar,
+    Union,
 )
 
 if TYPE_CHECKING:
-    from mongotic.query import Select
+    from pymongo.collection import Collection
+
+    from mongotic.query import Delete, Insert, Select, Update
 
 from bson.objectid import ObjectId
 from pymongo import MongoClient
@@ -36,11 +39,11 @@ _T = TypeVar("_T", bound=MongoBaseModel)
 class ScalarResult(Generic[_T]):
     def __init__(
         self,
-        collection: Any,
-        stmt: Any,
+        collection: "Collection[Dict[str, Any]]",
+        stmt: "Select[_T]",
         model: Type[_T],
-        session: Any,
-    ):
+        session: "Session",
+    ) -> None:
         self._collection = collection
         self._stmt = stmt
         self._model = model
@@ -76,9 +79,9 @@ class ScalarResult(Generic[_T]):
             return doc.get(self._stmt.projection_field_names[0])
         return self._hydrate(doc)
 
-    def all(self) -> List[Any]:
+    def all(self) -> List[_T]:
         if self._stmt._distinct_field is not None:
-            return self._collection.distinct(
+            return self._collection.distinct(  # type: ignore[return-value]
                 self._stmt._distinct_field.field_name, self._compiled_filter
             )
         return [self._extract_value(doc) for doc in self._build_cursor()]
@@ -118,11 +121,9 @@ class ScalarResult(Generic[_T]):
 class Session(Protocol):
     engine: MongoClient
     _add_instances: List[MongoBaseModel]
-    _update_instances: Dict[Tuple[int, Text], Tuple[MongoBaseModel, Text, Any]]
+    _update_instances: Dict[Tuple[int, str], Tuple[MongoBaseModel, str, Any]]
     _delete_instances: List[MongoBaseModel]
     _merge_instances: List[MongoBaseModel]
-
-    def __init__(self, **kwargs: Any): ...
 
     @property
     def new(self) -> List[MongoBaseModel]: ...
@@ -133,13 +134,16 @@ class Session(Protocol):
     @property
     def deleted(self) -> List[MongoBaseModel]: ...
 
-    def scalars(self, stmt: Select[_T]) -> ScalarResult[_T]: ...
+    def scalars(self, stmt: "Select[_T]") -> ScalarResult[_T]: ...
 
-    def scalar(self, stmt: Any) -> Any: ...
+    def scalar(self, stmt: "Select[_T]") -> Optional[_T]: ...
 
-    def execute(self, stmt: Any) -> Result: ...
+    def execute(
+        self,
+        stmt: "Union[Select[Any], Insert, Update, Delete]",
+    ) -> Result: ...
 
-    def get(self, model: Type[_T], id: Text) -> Optional[_T]: ...
+    def get(self, model: Type[_T], id: str) -> Optional[_T]: ...
 
     def add(self, instance: MongoBaseModel) -> None: ...
 
@@ -163,18 +167,23 @@ class Session(Protocol):
 
     def close(self) -> None: ...
 
-    def __enter__(self) -> Session: ...
+    def __enter__(self) -> "Session": ...
 
-    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None: ...
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None: ...
 
 
 def sessionmaker(bind: MongoClient) -> Type[Session]:
     class _Session:
-        def __init__(self):
+        def __init__(self) -> None:
             self.engine = bind
             self._add_instances: List[MongoBaseModel] = []
             self._update_instances: Dict[
-                Tuple[int, Text], Tuple[MongoBaseModel, Text, Any]
+                Tuple[int, str], Tuple[MongoBaseModel, str, Any]
             ] = {}
             self._delete_instances: List[MongoBaseModel] = []
             self._merge_instances: List[MongoBaseModel] = []
@@ -198,7 +207,7 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
 
         # ── querying ────────────────────────────────────────────────────────
 
-        def scalars(self, stmt: Select[_T]) -> ScalarResult[_T]:
+        def scalars(self, stmt: "Select[_T]") -> ScalarResult[_T]:
             from mongotic.query import Select
 
             if not isinstance(stmt, Select):
@@ -214,15 +223,18 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
             ]
             return ScalarResult(
                 collection=collection,
-                stmt=stmt,
-                model=stmt._model,
-                session=self,
+                stmt=stmt,  # type: ignore[arg-type]
+                model=stmt._model,  # type: ignore[arg-type]
+                session=self,  # type: ignore[arg-type]
             )
 
-        def scalar(self, stmt: Any) -> Any:
+        def scalar(self, stmt: "Select[_T]") -> Optional[_T]:
             return self.scalars(stmt).first()
 
-        def execute(self, stmt: Any) -> Result:
+        def execute(
+            self,
+            stmt: "Union[Select[Any], Insert, Update, Delete]",
+        ) -> Result:
             from mongotic.query import (
                 Delete,
                 Insert,
@@ -282,7 +294,7 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
                 f"got {type(stmt).__name__}"
             )
 
-        def get(self, model: Type[_T], id: Text) -> Optional[_T]:
+        def get(self, model: Type[_T], id: str) -> Optional[_T]:
             from mongotic.query import _hydrate_doc
 
             collection = self.engine[model.__databasename__][model.__tablename__]
@@ -371,7 +383,7 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
                 # field-level updates for this instance to avoid redundant writes
                 self._drop_pending_updates(instance)
                 self._merge_instances.append(instance)
-            instance._session = self
+            object.__setattr__(instance, "_session", self)
             return instance
 
         # ── write control (no transactions) ──────────────────────────────────
@@ -399,7 +411,12 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
         def __enter__(self) -> _Session:
             return self
 
-        def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_value: Optional[BaseException],
+            traceback: Optional[TracebackType],
+        ) -> None:
             self.close()
 
         # ── internals ────────────────────────────────────────────────────────
@@ -412,8 +429,8 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
                     _add_instance.__tablename__
                 ]
                 result = _col.insert_one(_add_instance.model_dump())
-                _add_instance._id = str(result.inserted_id)
-                _add_instance._session = self
+                object.__setattr__(_add_instance, "_id", str(result.inserted_id))
+                object.__setattr__(_add_instance, "_session", self)
 
             for _update_instance in self._update_instances.values():
                 _instance, _field_to_update, _new_value = _update_instance
@@ -438,7 +455,7 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
                     _merge_instance.model_dump(),
                     upsert=True,
                 )
-                _merge_instance._session = self
+                object.__setattr__(_merge_instance, "_session", self)
 
             self._clear_staging()
 
