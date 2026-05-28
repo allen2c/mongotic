@@ -11,22 +11,30 @@ pip install mongotic
 ## 2. Define a model
 
 ```python
-from typing import Optional, Text
+from typing import Optional
 
-from pydantic import Field
-
-from mongotic.model import MongoBaseModel
+from mongotic import Mapped, MongoBaseModel, mapped_field
 
 
 class User(MongoBaseModel):
     __databasename__ = "myapp"   # MongoDB database name
     __tablename__    = "users"   # MongoDB collection name
 
-    name:    Text          = Field(..., max_length=50)
-    email:   Text          = Field(...)
-    company: Optional[Text] = Field(None)
-    age:     Optional[int]  = Field(None, ge=0, le=200)
+    name:    Mapped[str]           = mapped_field(max_length=50)
+    email:   Mapped[str]           = mapped_field()
+    company: Mapped[Optional[str]] = mapped_field(default=None)
+    age:     Mapped[Optional[int]] = mapped_field(default=None, ge=0, le=200)
 ```
+
+!!! tip "Why `Mapped[T]` and not plain `Field()`?"
+    `Mapped[T]` is what makes IDE / pyright recognise `User.name == "x"` as a
+    query expression instead of a `bool`, and what lets `.in_()`, `.like()`,
+    `.between()`, and friends work without type warnings. See the
+    [migration guide](migration-v0.5-to-v0.6.md) for the rationale.
+
+    `mapped_field()` accepts every keyword Pydantic's `Field()` accepts (it
+    subclasses `pydantic.fields.FieldInfo`), plus three Mongo-specific extras:
+    `index=`, `unique=`, and `sparse=`.
 
 ## 3. Connect
 

@@ -282,6 +282,7 @@ print(session.deleted)  # [User(...)]
 Use `create_async_indexes` to apply `__indexes__` declarations to MongoDB:
 
 ```python
+from mongotic import Mapped, MongoBaseModel, mapped_field
 from mongotic.asyncio import create_async_indexes
 from pymongo import ASCENDING, DESCENDING
 from pymongo.operations import IndexModel
@@ -294,7 +295,10 @@ class User(MongoBaseModel):
         IndexModel([("email", ASCENDING)], unique=True),
         IndexModel([("created_at", DESCENDING)]),
     ]
-    ...
+
+    email:      Mapped[str] = mapped_field()
+    name:       Mapped[str] = mapped_field()
+    created_at: Mapped[int] = mapped_field()
 
 
 await create_async_indexes(async_engine, User)
