@@ -1,10 +1,9 @@
 """Integration tests for .between() range operator (MGT-023)."""
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import and_, select
+from mongotic import Mapped, and_, mapped_field, select
 from mongotic.model import ModelFieldOperation, MongoBaseModel, Operator
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -16,9 +15,9 @@ class RangeItem(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "range_item"
 
-    tag: str = Field(...)
-    value: int = Field(...)
-    score: float = Field(...)
+    tag: Mapped[str] = mapped_field()
+    value: Mapped[int] = mapped_field()
+    score: Mapped[float] = mapped_field()
 
 
 # ---------------------------------------------------------------------------

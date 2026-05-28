@@ -2,10 +2,9 @@ import os
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import AsyncMongoClient
 
-from mongotic import delete, insert, select, update
+from mongotic import Mapped, delete, insert, mapped_field, select, update
 from mongotic.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from mongotic.model import MongoBaseModel
 from mongotic.result import Result
@@ -43,8 +42,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_orm_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 @pytest.fixture
@@ -64,7 +63,7 @@ async def test_async_add_commit_get(async_session: AsyncSession) -> None:
     await s.commit()
     assert u._id is not None
     fetched = await s.get(_U, u._id)
-    assert fetched.name == f"alice_{token}"
+    assert fetched is not None and fetched.name == f"alice_{token}"
 
 
 async def test_async_rollback_discards_staging(async_session: AsyncSession) -> None:

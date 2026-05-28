@@ -2,10 +2,17 @@ from datetime import datetime
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import MultipleResultsFound, NotFound, delete, select, update
+from mongotic import (
+    Mapped,
+    MultipleResultsFound,
+    NotFound,
+    delete,
+    mapped_field,
+    select,
+    update,
+)
 from mongotic.model import MongoBaseModel
 from mongotic.orm import ScalarResult, sessionmaker
 from tests.helpers import rand_str, utc_now
@@ -17,12 +24,12 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user"
 
-    name: str = Field(..., max_length=50)
-    email: str = Field(...)
-    company: Optional[str] = Field(None, max_length=50)
-    age: Optional[int] = Field(None, ge=0, le=200)
-    created_at: Optional[datetime] = Field(..., default_factory=utc_now)
-    updated_at: Optional[datetime] = Field(..., default_factory=utc_now)
+    name: Mapped[str] = mapped_field(max_length=50)
+    email: Mapped[str] = mapped_field()
+    company: Mapped[Optional[str]] = mapped_field(default=None, max_length=50)
+    age: Mapped[Optional[int]] = mapped_field(default=None, ge=0, le=200)
+    created_at: Mapped[Optional[datetime]] = mapped_field(default_factory=utc_now)
+    updated_at: Mapped[Optional[datetime]] = mapped_field(default_factory=utc_now)
 
 
 def test_session_maker(mongo_engine: "MongoClient") -> None:
@@ -128,7 +135,7 @@ def test_get(mongo_engine: "MongoClient") -> None:
     session = Session()
 
     existing = session.scalars(select(User).where(User.company == test_company)).first()
-    assert existing is not None
+    assert existing is not None and existing._id is not None
 
     fetched = session.get(User, existing._id)
     assert fetched is not None

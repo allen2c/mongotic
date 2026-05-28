@@ -1,10 +1,9 @@
 """Integration tests for or_(), and_(), not_() logical combinators (MGT-018)."""
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import and_, not_, or_, select
+from mongotic import Mapped, and_, mapped_field, not_, or_, select
 from mongotic.model import CompoundFilter, ModelFieldOperation, MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -23,9 +22,9 @@ class LogicUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "logic_user"
 
-    tag: str = Field(...)  # isolates this test run
-    role: str = Field(...)
-    age: int = Field(...)
+    tag: Mapped[str] = mapped_field()  # isolates this test run
+    role: Mapped[str] = mapped_field()
+    age: Mapped[int] = mapped_field()
 
 
 # ---------------------------------------------------------------------------

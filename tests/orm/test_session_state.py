@@ -1,9 +1,9 @@
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
+from mongotic import Mapped, mapped_field
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -15,9 +15,9 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user_state"
 
-    name: str = Field(...)
-    company: Optional[str] = Field(None)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    company: Mapped[Optional[str]] = mapped_field(default=None)
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 @pytest.fixture(autouse=True)

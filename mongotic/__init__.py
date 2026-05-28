@@ -4,7 +4,15 @@ from bson.codec_options import TypeRegistry
 from pymongo import MongoClient
 
 from .exceptions import MultipleResultsFound, NotFound
-from .model import MongoBaseModel, and_, not_, or_
+from .model import (
+    Mapped,
+    MongoBaseModel,
+    MongoFieldInfo,
+    and_,
+    mapped_field,
+    not_,
+    or_,
+)
 from .query import delete, insert, select, update
 from .version import VERSION
 
@@ -20,6 +28,10 @@ __all__ = [
     "or_",
     "and_",
     "not_",
+    "Mapped",
+    "mapped_field",
+    "MongoBaseModel",
+    "MongoFieldInfo",
     "NotFound",
     "MultipleResultsFound",
 ]

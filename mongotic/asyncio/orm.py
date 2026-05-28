@@ -11,6 +11,7 @@ from typing import (
     Generic,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
@@ -189,7 +190,7 @@ class AsyncSession:
         return AsyncScalarResult(
             collection=collection,
             stmt=stmt,  # type: ignore[arg-type]
-            model=stmt._model,  # type: ignore[arg-type]
+            model=stmt._model,
             session=self,
         )
 
@@ -272,7 +273,7 @@ class AsyncSession:
         _assert_model_bound(instance)
         self._add_instances.append(instance)
 
-    def add_all(self, instances: List[MongoBaseModel]) -> None:
+    def add_all(self, instances: Sequence[MongoBaseModel]) -> None:
         for instance in instances:
             self.add(instance)
 

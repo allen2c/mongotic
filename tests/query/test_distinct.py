@@ -1,10 +1,9 @@
 """Integration tests for Select.distinct() (MGT-024)."""
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import select
+from mongotic import Mapped, mapped_field, select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -16,9 +15,9 @@ class DistUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "dist_user"
 
-    tag: str = Field(...)
-    role: str = Field(...)
-    dept: str = Field(...)
+    tag: Mapped[str] = mapped_field()
+    role: Mapped[str] = mapped_field()
+    dept: Mapped[str] = mapped_field()
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +35,7 @@ def test_distinct_sets_field() -> None:
 
 def test_distinct_is_chainable() -> None:
     stmt = select(DistUser).where(DistUser.tag == "x").distinct(DistUser.role)
+    assert stmt._distinct_field is not None
     assert stmt._distinct_field.field_name == "role"
     assert len(stmt._filters) == 1
 
@@ -68,7 +68,8 @@ def seed_and_cleanup(mongo_engine: MongoClient):
 def test_distinct_all_values(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
-    roles = session.scalars(
+    # .distinct().all() returns the raw BSON values, not full model instances.
+    roles: list = session.scalars(
         select(DistUser).where(DistUser.tag == _TAG).distinct(DistUser.role)
     ).all()
     assert sorted(roles) == ["admin", "guest", "member"]
@@ -78,7 +79,7 @@ def test_distinct_with_filter(mongo_engine: MongoClient) -> None:
     """distinct filtered by dept==eng should exclude hr admin."""
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
-    roles = session.scalars(
+    roles: list = session.scalars(
         select(DistUser)
         .where(DistUser.tag == _TAG, DistUser.dept == "eng")
         .distinct(DistUser.role)

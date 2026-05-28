@@ -35,6 +35,7 @@ nav:
   - Async: async.md
   - Cosmos DB Compatibility: cosmos-compatibility.md
   - Design: design.md
+  - Migration Guide (v0.5 → v0.6): migration-v0.5-to-v0.6.md
   - Migration Guide (v0.4 → v0.5): migration-v0.4-to-v0.5.md
   - Migration Guide (v0.2 → v0.3): migration-v0.2-to-v0.3.md
 

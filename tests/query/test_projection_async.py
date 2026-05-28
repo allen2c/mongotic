@@ -3,10 +3,9 @@
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import AsyncMongoClient
 
-from mongotic import insert, select
+from mongotic import Mapped, insert, mapped_field, select
 from mongotic.asyncio import AsyncSelectResult, AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
@@ -16,8 +15,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_proj_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 @pytest.fixture

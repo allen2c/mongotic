@@ -1,10 +1,9 @@
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import insert, select
+from mongotic import Mapped, insert, mapped_field, select
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from mongotic.result import Row, SelectResult
@@ -15,8 +14,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"projection_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 def _s(mongo_engine):
@@ -94,9 +93,14 @@ def test_execute_select_returns_select_result(mongo_engine: MongoClient) -> None
 
 
 def test_projection_drops_id_by_default(mongo_engine: MongoClient) -> None:
+    from mongotic.result import SelectResult
+
     token = rand_str(6)
     s = _seed(mongo_engine, [{"name": f"k_{token}"}])
-    row = s.execute(select(_U.name).where(_U.name == f"k_{token}")).first()
+    result = s.execute(select(_U.name).where(_U.name == f"k_{token}"))
+    assert isinstance(result, SelectResult)
+    row = result.first()
+    assert row is not None
     with pytest.raises(AttributeError):
         _ = row._id
 
@@ -121,7 +125,7 @@ def test_scalars_rejects_multi_column(mongo_engine: MongoClient) -> None:
 
 def test_mixed_entities_raise() -> None:
     with pytest.raises(TypeError):
-        select(_U, _U.name)
+        select(_U, _U.name)  # type: ignore[call-overload]
 
 
 def test_select_no_args_raises() -> None:
