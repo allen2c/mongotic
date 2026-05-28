@@ -1,10 +1,10 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from bson import ObjectId
 from pydantic import Field
+from pymongo import AsyncMongoClient
 
-from mongotic import select
 from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
@@ -14,17 +14,19 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_merge_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
 
-async def test_merge_without_id_behaves_like_add(async_session, async_mongo_engine):
+async def test_merge_without_id_behaves_like_add(
+    async_session: AsyncSession, async_mongo_engine: AsyncMongoClient
+) -> None:
     s = async_session
     user = _U(name="Alice", age=25)
     merged = s.merge(user)
@@ -40,8 +42,8 @@ async def test_merge_without_id_behaves_like_add(async_session, async_mongo_engi
 
 
 async def test_merge_with_existing_id_updates_document(
-    async_session, async_mongo_engine
-):
+    async_session: AsyncSession, async_mongo_engine: AsyncMongoClient
+) -> None:
     s = async_session
     user = _U(name="Bob", age=30)
     s.add(user)
@@ -64,8 +66,8 @@ async def test_merge_with_existing_id_updates_document(
 
 
 async def test_merge_with_nonexistent_id_inserts_document(
-    async_session, async_mongo_engine
-):
+    async_session: AsyncSession, async_mongo_engine: AsyncMongoClient
+) -> None:
     s = async_session
     fake_id = str(ObjectId())
     user = _U(name="Carol", age=35)
@@ -81,7 +83,7 @@ async def test_merge_with_nonexistent_id_inserts_document(
     assert doc["name"] == "Carol"
 
 
-async def test_merge_binds_session(async_session):
+async def test_merge_binds_session(async_session: AsyncSession) -> None:
     s = async_session
     user = _U(name="Dave", age=40)
     merged = s.merge(user)
@@ -89,8 +91,8 @@ async def test_merge_binds_session(async_session):
 
 
 async def test_merge_clears_pending_updates_for_instance(
-    async_session, async_mongo_engine
-):
+    async_session: AsyncSession, async_mongo_engine: AsyncMongoClient
+) -> None:
     s = async_session
     user = _U(name="Frank", age=20)
     s.add(user)
@@ -110,7 +112,7 @@ async def test_merge_clears_pending_updates_for_instance(
     assert doc["age"] == 21
 
 
-async def test_merge_staging_cleared_after_flush(async_session):
+async def test_merge_staging_cleared_after_flush(async_session: AsyncSession) -> None:
     s = async_session
     user = _U(name="Eve", age=22)
     s.merge(user)

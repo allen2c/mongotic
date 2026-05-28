@@ -1,54 +1,71 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Generic, List, Optional, Text, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from mongotic.model import (
-    CompoundFilter,
     FilterType,
     ModelField,
-    ModelFieldOperation,
     ModelFieldSort,
     MongoBaseModel,
     SortDirection,
+    WhereArg,
 )
 
 _T = TypeVar("_T", bound=MongoBaseModel)
 
 
-def _is_model_entity(e):
+def _is_model_entity(e: object) -> bool:
     from mongotic.model import MongoBaseModel
 
     return isinstance(e, type) and issubclass(e, MongoBaseModel)
 
 
-def _is_field_entity(e):
+def _is_field_entity(e: object) -> bool:
     from mongotic.model import ModelField
 
     return isinstance(e, ModelField)
 
 
 class Select(Generic[_T]):
-    def __init__(self, entities: Tuple):
-        from mongotic.model import ModelField, MongoBaseModel
+    def __init__(
+        self,
+        entities: Tuple[Union[Type[MongoBaseModel], ModelField], ...],
+    ) -> None:
 
         if not entities:
             raise TypeError("select() requires at least one entity")
 
+        self._model: Type[MongoBaseModel]
+        self._projection_fields: List[ModelField]
         if all(_is_model_entity(e) for e in entities):
             if len(entities) > 1:
                 raise TypeError(
                     "select() supports only a single model entity at a time"
                 )
-            self._model = entities[0]
-            self._projection_fields: List[ModelField] = []
+            first = next(iter(entities))
+            assert isinstance(first, type)
+            self._model = first
+            self._projection_fields = []
         elif all(_is_field_entity(e) for e in entities):
-            owners = {e.model_class for e in entities}
+            fields = [e for e in entities if isinstance(e, ModelField)]
+            owners = {f.model_class for f in fields}
             if len(owners) > 1:
                 raise TypeError(
                     f"select() projection fields must belong to one model, got {owners!r}"
                 )
             self._model = next(iter(owners))
-            self._projection_fields = list(entities)
+            self._projection_fields = fields
         else:
             raise TypeError(
                 f"select() entities must be either a MongoBaseModel subclass or "
@@ -75,8 +92,8 @@ class Select(Generic[_T]):
     def projection_field_count(self) -> int:
         return len(self._projection_fields)
 
-    def where(self, *conditions: FilterType) -> Select[_T]:
-        self._filters.extend(conditions)
+    def where(self, *conditions: WhereArg) -> Select[_T]:
+        self._filters.extend(conditions)  # type: ignore[arg-type]
         return self
 
     def distinct(self, field: ModelField) -> Select[_T]:
@@ -91,7 +108,7 @@ class Select(Generic[_T]):
         self._distinct_field = field
         return self
 
-    def order_by(self, *fields: Union[ModelFieldSort, Any]) -> Select[_T]:
+    def order_by(self, *fields: Union[ModelFieldSort, ModelField]) -> Select[_T]:
         for field in fields:
             if isinstance(field, ModelFieldSort):
                 self._sort.append(field)
@@ -129,10 +146,10 @@ class Update:
     def __init__(self, orm_model: Type[MongoBaseModel]):
         self._model = orm_model
         self._filters: List[FilterType] = []
-        self._values: Dict[Text, Any] = {}
+        self._values: Dict[str, Any] = {}
 
-    def where(self, *conditions: FilterType) -> Update:
-        self._filters.extend(conditions)
+    def where(self, *conditions: WhereArg) -> Update:
+        self._filters.extend(conditions)  # type: ignore[arg-type]
         return self
 
     def values(self, **kwargs: Any) -> Update:
@@ -145,19 +162,24 @@ class Delete:
         self._model = orm_model
         self._filters: List[FilterType] = []
 
-    def where(self, *conditions: FilterType) -> Delete:
-        self._filters.extend(conditions)
+    def where(self, *conditions: WhereArg) -> Delete:
+        self._filters.extend(conditions)  # type: ignore[arg-type]
         return self
 
 
 class Insert:
     def __init__(self, orm_model: Type[MongoBaseModel]):
         self._model = orm_model
-        self._values: List[Dict[Text, Any]] = []
+        self._values: List[Dict[str, Any]] = []
 
     def values(
         self,
-        data: Union[MongoBaseModel, Dict[Text, Any], List[Any], None],
+        data: Union[
+            MongoBaseModel,
+            Dict[str, Any],
+            List[Union[MongoBaseModel, Dict[str, Any]]],
+            None,
+        ],
     ) -> Insert:
         if data is None:
             normalized: List[Any] = []
@@ -172,7 +194,7 @@ class Insert:
                 f"insert().values() expects dict, list, or MongoBaseModel, got {type(data).__name__}"
             )
 
-        dumps: List[Dict[Text, Any]] = []
+        dumps: List[Dict[str, Any]] = []
         for item in normalized:
             if isinstance(item, MongoBaseModel):
                 dumps.append(item.model_dump())
@@ -187,7 +209,13 @@ class Insert:
         return self
 
 
-def select(*entities) -> Select:
+@overload
+def select(model: Type[_T], /) -> Select[_T]: ...
+@overload
+def select(*fields: ModelField) -> Select[Any]: ...
+def select(
+    *entities: Union[Type[MongoBaseModel], ModelField],
+) -> Select:
     if not entities:
         raise TypeError("select() requires at least one entity")
     return Select(entities=entities)
@@ -208,7 +236,7 @@ def insert(orm_model: Type[MongoBaseModel]) -> Insert:
 # ── shared helpers ────────────────────────────────────────────────────────────
 
 
-def _compile_sort(sort_list):
+def _compile_sort(sort_list: List[ModelFieldSort]) -> List[Tuple[str, int]]:
     """Convert internal sort entries to pymongo (field, direction) tuples."""
     from pymongo import ASCENDING, DESCENDING
 

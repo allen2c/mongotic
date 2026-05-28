@@ -1,10 +1,10 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import NotFound, select
+from mongotic import NotFound
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -16,8 +16,8 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user_refresh"
 
-    name: Text = Field(...)
-    company: Optional[Text] = Field(None)
+    name: str = Field(...)
+    company: Optional[str] = Field(None)
     age: Optional[int] = Field(None)
 
 
@@ -27,7 +27,7 @@ def cleanup(mongo_engine: "MongoClient"):
     mongo_engine["test"]["user_refresh"].delete_many({"company": test_company})
 
 
-def test_refresh_reloads_fields_from_db(mongo_engine: "MongoClient"):
+def test_refresh_reloads_fields_from_db(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Alice", company=test_company, age=25)
@@ -45,7 +45,7 @@ def test_refresh_reloads_fields_from_db(mongo_engine: "MongoClient"):
         assert user.age == 99  # now up-to-date
 
 
-def test_refresh_clears_pending_updates(mongo_engine: "MongoClient"):
+def test_refresh_clears_pending_updates(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Bob", company=test_company, age=30)
@@ -60,7 +60,9 @@ def test_refresh_clears_pending_updates(mongo_engine: "MongoClient"):
         assert session.dirty == []
 
 
-def test_refresh_raises_value_error_for_unpersisted(mongo_engine: "MongoClient"):
+def test_refresh_raises_value_error_for_unpersisted(
+    mongo_engine: "MongoClient",
+) -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Carol", company=test_company, age=35)
@@ -69,7 +71,7 @@ def test_refresh_raises_value_error_for_unpersisted(mongo_engine: "MongoClient")
             session.refresh(user)
 
 
-def test_refresh_raises_not_found_for_deleted_doc(mongo_engine: "MongoClient"):
+def test_refresh_raises_not_found_for_deleted_doc(mongo_engine: "MongoClient") -> None:
     Session = sessionmaker(bind=mongo_engine)
     with Session() as session:
         user = User(name="Dave", company=test_company, age=40)

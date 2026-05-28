@@ -1,25 +1,32 @@
 from __future__ import annotations
 
 import functools
+from types import TracebackType
 from typing import (
+    TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Callable,
     Dict,
     Generic,
     List,
     Optional,
-    Text,
     Tuple,
     Type,
     TypeVar,
+    Union,
 )
+
+if TYPE_CHECKING:
+    from pymongo.asynchronous.collection import AsyncCollection
+
+    from mongotic.query import Delete, Insert, Select, Update
 
 from bson.objectid import ObjectId
 from pymongo import AsyncMongoClient
 
 from mongotic.exceptions import MultipleResultsFound, NotFound
 from mongotic.model import (
-    NOT_SET_SENTINEL,
     ModelFieldOperation,
     MongoBaseModel,
     _assert_model_bound,
@@ -32,11 +39,11 @@ _T = TypeVar("_T", bound=MongoBaseModel)
 class AsyncScalarResult(Generic[_T]):
     def __init__(
         self,
-        collection: Any,
-        stmt: Any,
+        collection: "AsyncCollection[Dict[str, Any]]",
+        stmt: "Select[_T]",
         model: Type[_T],
-        session: AsyncSession,
-    ):
+        session: "AsyncSession",
+    ) -> None:
         self._collection = collection
         self._stmt = stmt
         self._model = model
@@ -72,19 +79,19 @@ class AsyncScalarResult(Generic[_T]):
             return doc.get(self._stmt.projection_field_names[0])
         return self._hydrate(doc)
 
-    async def all(self) -> List[Any]:
+    async def all(self) -> List[_T]:
         if self._stmt._distinct_field is not None:
-            return await self._collection.distinct(
+            return await self._collection.distinct(  # type: ignore[return-value]
                 self._stmt._distinct_field.field_name, self._compiled_filter
             )
         return [self._extract_value(doc) async for doc in self._build_cursor()]
 
-    async def first(self) -> Optional[Any]:
+    async def first(self) -> Optional[_T]:
         async for doc in self._build_cursor().limit(1):
             return self._extract_value(doc)
         return None
 
-    async def one(self) -> Any:
+    async def one(self) -> _T:
         docs = [d async for d in self._build_cursor().limit(2)]
         if not docs:
             raise NotFound("No result found")
@@ -92,7 +99,7 @@ class AsyncScalarResult(Generic[_T]):
             raise MultipleResultsFound("Expected one result, got multiple")
         return self._extract_value(docs[0])
 
-    async def one_or_none(self) -> Optional[Any]:
+    async def one_or_none(self) -> Optional[_T]:
         docs = [d async for d in self._build_cursor().limit(2)]
         if not docs:
             return None
@@ -108,7 +115,7 @@ class AsyncScalarResult(Generic[_T]):
             await self._collection.count_documents(self._compiled_filter, limit=1) > 0
         )
 
-    async def __aiter__(self) -> AsyncIterator[Any]:
+    async def __aiter__(self) -> AsyncIterator[_T]:
         async for doc in self._build_cursor():
             yield self._extract_value(doc)
 
@@ -137,13 +144,13 @@ class AsyncSelectResult(SelectResult):
 
 
 class AsyncSession:
-    def __init__(self, bind: Optional[AsyncMongoClient] = None):
+    def __init__(self, bind: Optional[AsyncMongoClient] = None) -> None:
         if bind is None:
             raise TypeError("AsyncSession requires bind=AsyncMongoClient")
         self.engine: AsyncMongoClient = bind
         self._add_instances: List[MongoBaseModel] = []
         self._update_instances: Dict[
-            Tuple[int, Text], Tuple[MongoBaseModel, Text, Any]
+            Tuple[int, str], Tuple[MongoBaseModel, str, Any]
         ] = {}
         self._delete_instances: List[MongoBaseModel] = []
         self._merge_instances: List[MongoBaseModel] = []
@@ -167,7 +174,7 @@ class AsyncSession:
 
     # ── querying ──────────────────────────────────────────────────────────────
 
-    def scalars(self, stmt: Any) -> AsyncScalarResult:
+    def scalars(self, stmt: "Select[_T]") -> AsyncScalarResult[_T]:
         from mongotic.query import Select
 
         if not isinstance(stmt, Select):
@@ -181,15 +188,18 @@ class AsyncSession:
         ]
         return AsyncScalarResult(
             collection=collection,
-            stmt=stmt,
-            model=stmt._model,
+            stmt=stmt,  # type: ignore[arg-type]
+            model=stmt._model,  # type: ignore[arg-type]
             session=self,
         )
 
-    async def scalar(self, stmt: Any) -> Any:
+    async def scalar(self, stmt: "Select[_T]") -> Optional[_T]:
         return await self.scalars(stmt).first()
 
-    async def execute(self, stmt: Any) -> Result:
+    async def execute(
+        self,
+        stmt: "Union[Select[Any], Insert, Update, Delete]",
+    ) -> Result:
         from mongotic.query import (
             Delete,
             Insert,
@@ -247,7 +257,7 @@ class AsyncSession:
             f"got {type(stmt).__name__}"
         )
 
-    async def get(self, model: Type[_T], id: Text) -> Optional[_T]:
+    async def get(self, model: Type[_T], id: str) -> Optional[_T]:
         from mongotic.query import _hydrate_doc
 
         collection = self.engine[model.__databasename__][model.__tablename__]
@@ -298,7 +308,7 @@ class AsyncSession:
         else:
             self._drop_pending_updates(instance)
             self._merge_instances.append(instance)
-        instance._session = self
+        object.__setattr__(instance, "_session", self)
         return instance
 
     # ── async I/O ops ─────────────────────────────────────────────────────────
@@ -344,7 +354,12 @@ class AsyncSession:
     async def __aenter__(self) -> AsyncSession:
         return self
 
-    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> None:
         await self.close()
 
     # ── internals ─────────────────────────────────────────────────────────────
@@ -355,8 +370,8 @@ class AsyncSession:
         for _add_instance in self._add_instances:
             _col = engine[_add_instance.__databasename__][_add_instance.__tablename__]
             result = await _col.insert_one(_add_instance.model_dump())
-            _add_instance._id = str(result.inserted_id)
-            _add_instance._session = self
+            object.__setattr__(_add_instance, "_id", str(result.inserted_id))
+            object.__setattr__(_add_instance, "_session", self)
 
         for _update_instance in self._update_instances.values():
             _instance, _field_to_update, _new_value = _update_instance
@@ -381,7 +396,7 @@ class AsyncSession:
                 _merge_instance.model_dump(),
                 upsert=True,
             )
-            _merge_instance._session = self
+            object.__setattr__(_merge_instance, "_session", self)
 
         self._clear_staging()
 
@@ -392,7 +407,7 @@ class AsyncSession:
         self._merge_instances = []
 
 
-def async_sessionmaker(bind: AsyncMongoClient):
+def async_sessionmaker(bind: AsyncMongoClient) -> Callable[[], AsyncSession]:
     """Factory that returns a callable producing AsyncSession instances bound to *bind*."""
 
     def _factory() -> AsyncSession:

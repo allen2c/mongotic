@@ -1,8 +1,8 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
-from pymongo import ASCENDING, DESCENDING
+from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
 from pymongo.operations import IndexModel
 
 from mongotic.asyncio import async_sessionmaker, create_async_indexes
@@ -20,8 +20,8 @@ class _UserWithIndexes(MongoBaseModel):
         IndexModel([("created_at", DESCENDING)]),
     ]
 
-    email: Text = Field(...)
-    name: Optional[Text] = Field(None)
+    email: str = Field(...)
+    name: Optional[str] = Field(None)
     created_at: Optional[int] = Field(None)
 
 
@@ -29,7 +29,7 @@ class _UserNoIndexes(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_noidx_{_SUFFIX}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +39,10 @@ async def cleanup(async_mongo_engine):
     await async_mongo_engine["test"][_UserNoIndexes.__tablename__].drop()
 
 
-async def test_create_async_indexes_applies_to_collection(async_mongo_engine):
+@pytest.mark.cosmos_unsupported
+async def test_create_async_indexes_applies_to_collection(
+    async_mongo_engine: AsyncMongoClient,
+) -> None:
     await create_async_indexes(async_mongo_engine, _UserWithIndexes)
 
     index_info = await async_mongo_engine["test"][
@@ -52,7 +55,10 @@ async def test_create_async_indexes_applies_to_collection(async_mongo_engine):
     assert ("created_at", -1) in [k[0] for k in index_keys]
 
 
-async def test_create_async_indexes_unique_enforced(async_mongo_engine):
+@pytest.mark.cosmos_unsupported
+async def test_create_async_indexes_unique_enforced(
+    async_mongo_engine: AsyncMongoClient,
+) -> None:
     from pymongo.errors import DuplicateKeyError
 
     await create_async_indexes(async_mongo_engine, _UserWithIndexes)
@@ -68,7 +74,9 @@ async def test_create_async_indexes_unique_enforced(async_mongo_engine):
         await s2.commit()
 
 
-async def test_create_async_indexes_skips_model_without_indexes(async_mongo_engine):
+async def test_create_async_indexes_skips_model_without_indexes(
+    async_mongo_engine: AsyncMongoClient,
+) -> None:
     await create_async_indexes(async_mongo_engine, _UserNoIndexes)
 
     index_info = await async_mongo_engine["test"][
@@ -78,7 +86,10 @@ async def test_create_async_indexes_skips_model_without_indexes(async_mongo_engi
     assert non_id_indexes == []
 
 
-async def test_create_async_indexes_accepts_multiple_models(async_mongo_engine):
+@pytest.mark.cosmos_unsupported
+async def test_create_async_indexes_accepts_multiple_models(
+    async_mongo_engine: AsyncMongoClient,
+) -> None:
     await create_async_indexes(async_mongo_engine, _UserWithIndexes, _UserNoIndexes)
 
     index_info = await async_mongo_engine["test"][
@@ -87,11 +98,11 @@ async def test_create_async_indexes_accepts_multiple_models(async_mongo_engine):
     assert len(index_info) > 1  # _id + custom indexes
 
 
-async def test_indexes_class_attribute_not_instance_field():
+async def test_indexes_class_attribute_not_instance_field() -> None:
     user = _UserWithIndexes(email="test@example.com")
     assert "indexes" not in user.model_dump()
     assert "__indexes__" not in user.model_dump()
 
 
-def test_default_indexes_is_empty_list():
+def test_default_indexes_is_empty_list() -> None:
     assert _UserNoIndexes.__indexes__ == []

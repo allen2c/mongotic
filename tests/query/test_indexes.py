@@ -1,4 +1,4 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -21,8 +21,8 @@ class UserWithIndexes(MongoBaseModel):
         IndexModel([("created_at", DESCENDING)]),
     ]
 
-    email: Text = Field(...)
-    name: Optional[Text] = Field(None)
+    email: str = Field(...)
+    name: Optional[str] = Field(None)
     created_at: Optional[int] = Field(None)
 
 
@@ -30,7 +30,7 @@ class UserNoIndexes(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"user_noidx_{test_suffix}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
 
 
 @pytest.fixture(autouse=True)
@@ -40,7 +40,8 @@ def cleanup(mongo_engine: "MongoClient"):
     mongo_engine["test"][UserNoIndexes.__tablename__].drop()
 
 
-def test_create_indexes_applies_to_collection(mongo_engine: "MongoClient"):
+@pytest.mark.cosmos_unsupported
+def test_create_indexes_applies_to_collection(mongo_engine: "MongoClient") -> None:
     create_indexes(mongo_engine, UserWithIndexes)
 
     index_info = mongo_engine["test"][UserWithIndexes.__tablename__].index_information()
@@ -51,7 +52,8 @@ def test_create_indexes_applies_to_collection(mongo_engine: "MongoClient"):
     assert ("created_at", -1) in [k[0] for k in index_keys]
 
 
-def test_create_indexes_unique_enforced(mongo_engine: "MongoClient"):
+@pytest.mark.cosmos_unsupported
+def test_create_indexes_unique_enforced(mongo_engine: "MongoClient") -> None:
     from pymongo.errors import DuplicateKeyError
 
     create_indexes(mongo_engine, UserWithIndexes)
@@ -66,7 +68,9 @@ def test_create_indexes_unique_enforced(mongo_engine: "MongoClient"):
             session.flush()
 
 
-def test_create_indexes_skips_model_without_indexes(mongo_engine: "MongoClient"):
+def test_create_indexes_skips_model_without_indexes(
+    mongo_engine: "MongoClient",
+) -> None:
     # Should not raise even though model has no __indexes__
     create_indexes(mongo_engine, UserNoIndexes)
 
@@ -76,7 +80,8 @@ def test_create_indexes_skips_model_without_indexes(mongo_engine: "MongoClient")
     assert non_id_indexes == []
 
 
-def test_create_indexes_accepts_multiple_models(mongo_engine: "MongoClient"):
+@pytest.mark.cosmos_unsupported
+def test_create_indexes_accepts_multiple_models(mongo_engine: "MongoClient") -> None:
     # Should handle multiple model args without error
     create_indexes(mongo_engine, UserWithIndexes, UserNoIndexes)
 
@@ -84,13 +89,15 @@ def test_create_indexes_accepts_multiple_models(mongo_engine: "MongoClient"):
     assert len(index_info) > 1  # _id + our custom indexes
 
 
-def test_indexes_class_attribute_not_instance_field(mongo_engine: "MongoClient"):
+def test_indexes_class_attribute_not_instance_field(
+    mongo_engine: "MongoClient",
+) -> None:
     # __indexes__ should not appear as a Pydantic model field
     user = UserWithIndexes(email="test@example.com")
     assert "indexes" not in user.model_dump()
     assert "__indexes__" not in user.model_dump()
 
 
-def test_default_indexes_is_empty_list():
+def test_default_indexes_is_empty_list() -> None:
     # Models without explicit __indexes__ should default to []
     assert UserNoIndexes.__indexes__ == []

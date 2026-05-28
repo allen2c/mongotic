@@ -1,9 +1,10 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field, ValidationError
+from pymongo import AsyncMongoClient
 
-from mongotic import insert, select
+from mongotic import insert
 from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
@@ -13,17 +14,17 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_insert_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
 
-async def test_insert_bulk_dicts(async_session):
+async def test_insert_bulk_dicts(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     result = await s.execute(
@@ -39,7 +40,7 @@ async def test_insert_bulk_dicts(async_session):
     assert all(isinstance(i, str) for i in result.inserted_ids)
 
 
-async def test_insert_single_dict(async_session):
+async def test_insert_single_dict(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     result = await s.execute(insert(_U).values({"name": f"solo_{token}", "age": 10}))
@@ -47,14 +48,14 @@ async def test_insert_single_dict(async_session):
     assert len(result.inserted_ids) == 1
 
 
-async def test_insert_empty_is_noop(async_session):
+async def test_insert_empty_is_noop(async_session: AsyncSession) -> None:
     s = async_session
     result = await s.execute(insert(_U).values([]))
     assert result.rowcount == 0
     assert result.inserted_ids == []
 
 
-async def test_insert_from_model_instances(async_session):
+async def test_insert_from_model_instances(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     result = await s.execute(
@@ -63,12 +64,14 @@ async def test_insert_from_model_instances(async_session):
     assert result.rowcount == 2
 
 
-async def test_insert_validates_in_values_call():
+async def test_insert_validates_in_values_call() -> None:
     with pytest.raises(ValidationError):
         insert(_U).values([{"name": 123, "age": "not-an-int"}])
 
 
-async def test_insert_does_not_appear_in_session_new(async_session):
+async def test_insert_does_not_appear_in_session_new(
+    async_session: AsyncSession,
+) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"wt_{token}"}]))

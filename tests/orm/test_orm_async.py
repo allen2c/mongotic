@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
@@ -12,17 +12,18 @@ from mongotic.result import Result
 from tests.helpers import rand_str
 
 
-def test_async_engine_imports():
-    from mongotic.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+def test_async_engine_imports() -> None:
+    from mongotic.asyncio import async_sessionmaker
 
     assert callable(create_async_engine)
     assert callable(async_sessionmaker)
 
 
-async def test_create_async_engine_returns_async_client(async_mongo_engine):
+async def test_create_async_engine_returns_async_client(
+    async_mongo_engine: AsyncMongoClient,
+) -> None:
     # async_mongo_engine fixture from conftest already exposes an AsyncMongoClient.
     # Here we additionally verify our create_async_engine factory:
-    import os
 
     from mongotic.asyncio import create_async_engine
 
@@ -42,12 +43,12 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_orm_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
@@ -55,7 +56,7 @@ def async_session(async_mongo_engine):
 # ── CRUD tests ────────────────────────────────────────────────────────────────
 
 
-async def test_async_add_commit_get(async_session):
+async def test_async_add_commit_get(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     u = _U(name=f"alice_{token}", age=10)
@@ -66,7 +67,7 @@ async def test_async_add_commit_get(async_session):
     assert fetched.name == f"alice_{token}"
 
 
-async def test_async_rollback_discards_staging(async_session):
+async def test_async_rollback_discards_staging(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     s.add(_U(name=f"ghost_{token}"))
@@ -75,7 +76,9 @@ async def test_async_rollback_discards_staging(async_session):
     assert await result.count() == 0
 
 
-async def test_async_context_manager_commits_and_closes(async_mongo_engine):
+async def test_async_context_manager_commits_and_closes(
+    async_mongo_engine: AsyncMongoClient,
+) -> None:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     token = rand_str(6)
     async with SessionLocal() as s:
@@ -87,7 +90,7 @@ async def test_async_context_manager_commits_and_closes(async_mongo_engine):
         assert n == 1
 
 
-async def test_async_execute_update_returns_result(async_session):
+async def test_async_execute_update_returns_result(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(
@@ -105,7 +108,7 @@ async def test_async_execute_update_returns_result(async_session):
     assert r.rowcount == 2
 
 
-async def test_async_execute_delete_returns_result(async_session):
+async def test_async_execute_delete_returns_result(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"d_{token}"}, {"name": f"e_{token}"}]))
@@ -114,7 +117,7 @@ async def test_async_execute_delete_returns_result(async_session):
     assert r.rowcount == 2
 
 
-async def test_async_execute_insert_returns_result(async_session):
+async def test_async_execute_insert_returns_result(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     r = await s.execute(
@@ -124,7 +127,7 @@ async def test_async_execute_insert_returns_result(async_session):
     assert len(r.inserted_ids) == 2
 
 
-async def test_async_scalars_first_one_or_none(async_session):
+async def test_async_scalars_first_one_or_none(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"u_{token}"}]))
@@ -137,7 +140,8 @@ async def test_async_scalars_first_one_or_none(async_session):
     assert nothing is None
 
 
-async def test_async_for_iteration(async_session):
+@pytest.mark.cosmos_unsupported
+async def test_async_for_iteration(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     names = [f"it_{token}_{i}" for i in range(3)]
@@ -148,7 +152,7 @@ async def test_async_for_iteration(async_session):
     assert sorted(collected) == sorted(names)
 
 
-async def test_async_scalar_shortcut(async_session):
+async def test_async_scalar_shortcut(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"sc_{token}", "age": 7}]))
@@ -156,7 +160,7 @@ async def test_async_scalar_shortcut(async_session):
     assert age == 7
 
 
-async def test_async_refresh(async_session):
+async def test_async_refresh(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"r_{token}", "age": 1}]))
@@ -166,7 +170,7 @@ async def test_async_refresh(async_session):
     assert u.age == 99
 
 
-async def test_async_merge_upserts(async_session):
+async def test_async_merge_upserts(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     u = _U(name=f"m_{token}", age=1)
@@ -179,7 +183,7 @@ async def test_async_merge_upserts(async_session):
     assert reloaded.age == 2
 
 
-async def test_async_state_properties(async_session):
+async def test_async_state_properties(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     a = _U(name=f"st_{token}")
@@ -192,7 +196,7 @@ async def test_async_state_properties(async_session):
     assert s.deleted == [a]
 
 
-async def test_async_expunge_and_expire(async_session):
+async def test_async_expunge_and_expire(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(insert(_U).values([{"name": f"ex_{token}", "age": 1}]))
@@ -209,7 +213,7 @@ async def test_async_expunge_and_expire(async_session):
     assert getattr(u, "_expired", False) is True
 
 
-async def test_async_async_select_result(async_session):
+async def test_async_async_select_result(async_session: AsyncSession) -> None:
     s = async_session
     token = rand_str(6)
     await s.execute(

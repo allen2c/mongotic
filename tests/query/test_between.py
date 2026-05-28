@@ -1,8 +1,5 @@
 """Integration tests for .between() range operator (MGT-023)."""
 
-from datetime import datetime, timezone
-from typing import Text
-
 import pytest
 from pydantic import Field
 from pymongo import MongoClient
@@ -19,7 +16,7 @@ class RangeItem(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "range_item"
 
-    tag: Text = Field(...)
+    tag: str = Field(...)
     value: int = Field(...)
     score: float = Field(...)
 
@@ -29,30 +26,30 @@ class RangeItem(MongoBaseModel):
 # ---------------------------------------------------------------------------
 
 
-def test_between_operator_enum():
+def test_between_operator_enum() -> None:
     op = RangeItem.value.between(18, 65)
     assert op.operation == Operator.BETWEEN
     assert op.value == (18, 65)
 
 
-def test_between_filter_shape():
+def test_between_filter_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([RangeItem.value.between(18, 65)])
     assert result == {"value": {"$gte": 18, "$lte": 65}}
 
 
-def test_between_float_shape():
+def test_between_float_shape() -> None:
     result = ModelFieldOperation.to_mongo_filter([RangeItem.score.between(1.5, 9.9)])
     assert result == {"score": {"$gte": 1.5, "$lte": 9.9}}
 
 
-def test_between_with_other_condition():
+def test_between_with_other_condition() -> None:
     result = ModelFieldOperation.to_mongo_filter(
         [RangeItem.tag == "x", RangeItem.value.between(10, 20)]
     )
     assert result == {"tag": {"$eq": "x"}, "value": {"$gte": 10, "$lte": 20}}
 
 
-def test_between_composes_with_and():
+def test_between_composes_with_and() -> None:
     f = and_(RangeItem.value.between(10, 50), RangeItem.score.between(1.0, 5.0))
     result = f.to_mongo_filter()
     assert result == {
@@ -88,7 +85,7 @@ def seed_and_cleanup(mongo_engine: MongoClient):
     session2.commit()
 
 
-def test_between_int(mongo_engine: MongoClient):
+def test_between_int(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -98,7 +95,7 @@ def test_between_int(mongo_engine: MongoClient):
     assert {r.value for r in results} == {25, 50}
 
 
-def test_between_inclusive_bounds(mongo_engine: MongoClient):
+def test_between_inclusive_bounds(mongo_engine: MongoClient) -> None:
     """Bounds are inclusive — value==10 and value==80 should be included."""
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
@@ -108,7 +105,7 @@ def test_between_inclusive_bounds(mongo_engine: MongoClient):
     assert len(results) == 4
 
 
-def test_between_no_match(mongo_engine: MongoClient):
+def test_between_no_match(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(
@@ -117,7 +114,7 @@ def test_between_no_match(mongo_engine: MongoClient):
     assert len(results) == 0
 
 
-def test_between_float(mongo_engine: MongoClient):
+def test_between_float(mongo_engine: MongoClient) -> None:
     Session = sessionmaker(bind=mongo_engine)
     session = Session()
     results = session.scalars(

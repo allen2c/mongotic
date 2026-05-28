@@ -1,4 +1,4 @@
-from typing import Optional, Text
+from typing import Optional
 
 from pydantic import Field
 from pymongo import MongoClient
@@ -14,7 +14,7 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"exec_result_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
@@ -23,7 +23,7 @@ def _fresh_session(mongo_engine: "MongoClient"):
     return sessionmaker(bind=mongo_engine)()
 
 
-def test_execute_update_returns_result_with_rowcount(mongo_engine):
+def test_execute_update_returns_result_with_rowcount(mongo_engine: MongoClient) -> None:
     s = _fresh_session(mongo_engine)
     s.add(_U(name="a", age=10))
     s.add(_U(name="b", age=20))
@@ -35,7 +35,7 @@ def test_execute_update_returns_result_with_rowcount(mongo_engine):
     assert result.inserted_ids == []
 
 
-def test_execute_delete_returns_result(mongo_engine):
+def test_execute_delete_returns_result(mongo_engine: MongoClient) -> None:
     s = _fresh_session(mongo_engine)
     unique = rand_str(12)
     s.add(_U(name=f"del_{unique}_x"))
@@ -47,7 +47,7 @@ def test_execute_delete_returns_result(mongo_engine):
     assert result.inserted_ids == []
 
 
-def test_execute_update_zero_match(mongo_engine):
+def test_execute_update_zero_match(mongo_engine: MongoClient) -> None:
     s = _fresh_session(mongo_engine)
     result = s.execute(update(_U).where(_U.name == "ghost").values(age=1))
     assert result.rowcount == 0

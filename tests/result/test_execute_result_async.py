@@ -1,7 +1,8 @@
-from typing import Optional, Text
+from typing import Optional
 
 import pytest
 from pydantic import Field
+from pymongo import AsyncMongoClient
 
 from mongotic import delete, insert, update
 from mongotic.asyncio import AsyncSession, async_sessionmaker
@@ -14,17 +15,19 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_exec_result_{rand_str(8)}"
 
-    name: Text = Field(...)
+    name: str = Field(...)
     age: Optional[int] = Field(None)
 
 
 @pytest.fixture
-def async_session(async_mongo_engine):
+def async_session(async_mongo_engine: AsyncMongoClient) -> AsyncSession:
     SessionLocal = async_sessionmaker(bind=async_mongo_engine)
     return SessionLocal()
 
 
-async def test_execute_update_returns_result_with_rowcount(async_session):
+async def test_execute_update_returns_result_with_rowcount(
+    async_session: AsyncSession,
+) -> None:
     s = async_session
     await s.execute(
         insert(_U).values(
@@ -41,7 +44,7 @@ async def test_execute_update_returns_result_with_rowcount(async_session):
     assert result.inserted_ids == []
 
 
-async def test_execute_delete_returns_result(async_session):
+async def test_execute_delete_returns_result(async_session: AsyncSession) -> None:
     s = async_session
     unique = rand_str(12)
     await s.execute(
@@ -58,7 +61,7 @@ async def test_execute_delete_returns_result(async_session):
     assert result.inserted_ids == []
 
 
-async def test_execute_update_zero_match(async_session):
+async def test_execute_update_zero_match(async_session: AsyncSession) -> None:
     s = async_session
     result = await s.execute(
         update(_U).where(_U.name == "ghost_xyz_not_exist").values(age=1)
