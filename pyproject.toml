@@ -1,6 +1,6 @@
 [project]
 name = "mongotic"
-version = "0.5.1"
+version = "0.6.0"
 description = "The concept of MongoDB, SQLAlchemy and Pydantic."
 authors = [{ name = "Allen Chou", email = "f1470891079@gmail.com" }]
 license = "MIT"
