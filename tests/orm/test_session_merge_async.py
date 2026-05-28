@@ -2,9 +2,9 @@ from typing import Optional
 
 import pytest
 from bson import ObjectId
-from pydantic import Field
 from pymongo import AsyncMongoClient
 
+from mongotic import Mapped, mapped_field
 from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
@@ -14,8 +14,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_merge_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 @pytest.fixture
@@ -109,7 +109,7 @@ async def test_merge_clears_pending_updates_for_instance(
     doc = await async_mongo_engine["test"][_U.__tablename__].find_one(
         {"_id": ObjectId(user._id)}
     )
-    assert doc["age"] == 21
+    assert doc is not None and doc["age"] == 21
 
 
 async def test_merge_staging_cleared_after_flush(async_session: AsyncSession) -> None:

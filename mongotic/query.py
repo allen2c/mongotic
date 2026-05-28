@@ -19,7 +19,6 @@ from mongotic.model import (
     ModelFieldSort,
     MongoBaseModel,
     SortDirection,
-    WhereArg,
 )
 
 _T = TypeVar("_T", bound=MongoBaseModel)
@@ -32,9 +31,9 @@ def _is_model_entity(e: object) -> bool:
 
 
 def _is_field_entity(e: object) -> bool:
-    from mongotic.model import ModelField
+    from mongotic.model import Mapped
 
-    return isinstance(e, ModelField)
+    return isinstance(e, Mapped)
 
 
 class Select(Generic[_T]):
@@ -58,8 +57,10 @@ class Select(Generic[_T]):
             self._model = first
             self._projection_fields = []
         elif all(_is_field_entity(e) for e in entities):
-            fields = [e for e in entities if isinstance(e, ModelField)]
-            owners = {f.model_class for f in fields}
+            from mongotic.model import Mapped
+
+            fields = [e for e in entities if isinstance(e, Mapped)]
+            owners = {f.model_class for f in fields if f.model_class is not None}
             if len(owners) > 1:
                 raise TypeError(
                     f"select() projection fields must belong to one model, got {owners!r}"
@@ -92,8 +93,8 @@ class Select(Generic[_T]):
     def projection_field_count(self) -> int:
         return len(self._projection_fields)
 
-    def where(self, *conditions: WhereArg) -> Select[_T]:
-        self._filters.extend(conditions)  # type: ignore[arg-type]
+    def where(self, *conditions: FilterType) -> Select[_T]:
+        self._filters.extend(conditions)
         return self
 
     def distinct(self, field: ModelField) -> Select[_T]:
@@ -109,10 +110,12 @@ class Select(Generic[_T]):
         return self
 
     def order_by(self, *fields: Union[ModelFieldSort, ModelField]) -> Select[_T]:
+        from mongotic.model import Mapped
+
         for field in fields:
             if isinstance(field, ModelFieldSort):
                 self._sort.append(field)
-            elif isinstance(field, ModelField):
+            elif isinstance(field, Mapped):
                 self._sort.append(
                     ModelFieldSort(model_field=field, direction=SortDirection.ASC)
                 )
@@ -148,8 +151,8 @@ class Update:
         self._filters: List[FilterType] = []
         self._values: Dict[str, Any] = {}
 
-    def where(self, *conditions: WhereArg) -> Update:
-        self._filters.extend(conditions)  # type: ignore[arg-type]
+    def where(self, *conditions: FilterType) -> Update:
+        self._filters.extend(conditions)
         return self
 
     def values(self, **kwargs: Any) -> Update:
@@ -162,8 +165,8 @@ class Delete:
         self._model = orm_model
         self._filters: List[FilterType] = []
 
-    def where(self, *conditions: WhereArg) -> Delete:
-        self._filters.extend(conditions)  # type: ignore[arg-type]
+    def where(self, *conditions: FilterType) -> Delete:
+        self._filters.extend(conditions)
         return self
 
 
@@ -213,6 +216,8 @@ class Insert:
 def select(model: Type[_T], /) -> Select[_T]: ...
 @overload
 def select(*fields: ModelField) -> Select[Any]: ...
+
+
 def select(
     *entities: Union[Type[MongoBaseModel], ModelField],
 ) -> Select:

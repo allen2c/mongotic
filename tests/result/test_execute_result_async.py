@@ -1,10 +1,9 @@
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import AsyncMongoClient
 
-from mongotic import delete, insert, update
+from mongotic import Mapped, delete, insert, mapped_field, update
 from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from mongotic.result import Result
@@ -15,8 +14,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_exec_result_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 @pytest.fixture

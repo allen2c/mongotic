@@ -1,10 +1,10 @@
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
 from pymongo.operations import IndexModel
 
+from mongotic import Mapped, mapped_field
 from mongotic.asyncio import async_sessionmaker, create_async_indexes
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
@@ -20,16 +20,16 @@ class _UserWithIndexes(MongoBaseModel):
         IndexModel([("created_at", DESCENDING)]),
     ]
 
-    email: str = Field(...)
-    name: Optional[str] = Field(None)
-    created_at: Optional[int] = Field(None)
+    email: Mapped[str] = mapped_field()
+    name: Mapped[Optional[str]] = mapped_field(default=None)
+    created_at: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 class _UserNoIndexes(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_noidx_{_SUFFIX}"
 
-    name: str = Field(...)
+    name: Mapped[str] = mapped_field()
 
 
 @pytest.fixture(autouse=True)

@@ -1,9 +1,8 @@
 from typing import Optional
 
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import delete, update
+from mongotic import Mapped, delete, mapped_field, update
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from mongotic.result import Result
@@ -14,8 +13,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"exec_result_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 def _fresh_session(mongo_engine: "MongoClient"):

@@ -1,14 +1,24 @@
 # Indexes
 
-## Declaring indexes on a model
+mongotic supports two complementary ways to declare indexes:
 
-Define MongoDB indexes on a model class using the `__indexes__` class attribute. Each entry is a pymongo `IndexModel`.
+1. **`__indexes__` class attribute** — list pymongo `IndexModel` entries
+   directly. Best for compound, full-text, geospatial, or any
+   pymongo-specific index option.
+2. **Per-field shorthand on `mapped_field()`** — pass `index=True`,
+   `unique=True`, and/or `sparse=True` on the field declaration itself for
+   simple single-field indexes.
+
+Both forms can be combined on the same model and are applied by the same
+`create_indexes()` call.
+
+## Declaring indexes on a model
 
 ```python
 from pymongo import ASCENDING, DESCENDING
 from pymongo.operations import IndexModel
 
-from mongotic.model import MongoBaseModel
+from mongotic import Mapped, MongoBaseModel, mapped_field
 
 class User(MongoBaseModel):
     __databasename__ = "mydb"
@@ -18,9 +28,9 @@ class User(MongoBaseModel):
         IndexModel([("created_at", DESCENDING)]),
     ]
 
-    email: str
-    name: str
-    created_at: int
+    email:      Mapped[str] = mapped_field()
+    name:       Mapped[str] = mapped_field()
+    created_at: Mapped[int] = mapped_field()
 ```
 
 `__indexes__` is a class-level attribute and does **not** appear in `model_dump()` or Pydantic's field schema.
@@ -73,3 +83,29 @@ class Article(MongoBaseModel):
 ```
 
 Refer to the [pymongo IndexModel documentation](https://pymongo.readthedocs.io/en/stable/api/pymongo/operations.html#pymongo.operations.IndexModel) for the full list of options.
+
+---
+
+## Per-field shorthand
+
+For straightforward single-field indexes you can declare the intent on the
+field itself with `mapped_field()` — no need to write a separate `IndexModel`.
+
+```python
+from mongotic import Mapped, MongoBaseModel, mapped_field
+
+class User(MongoBaseModel):
+    __databasename__ = "mydb"
+    __tablename__ = "users"
+
+    email: Mapped[str]  = mapped_field(unique=True, index=True)
+    slug:  Mapped[str | None] = mapped_field(default=None, unique=True, sparse=True)
+    name:  Mapped[str]  = mapped_field(index=True)
+```
+
+The `index` / `unique` / `sparse` flags survive on
+`User.model_fields["email"]` as attributes of the `MongoFieldInfo` Pydantic
+descriptor, so tooling that introspects model fields (e.g. schema generators)
+can read them directly. Reach for `__indexes__` when you need anything beyond
+single-field options — compound keys, text indexes, geo indexes, partial
+filter expressions, etc.

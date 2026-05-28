@@ -52,3 +52,35 @@ This mirrors SQLAlchemy's unit-of-work pattern, where modified attributes are de
 ## `commit()` is an alias for `flush()`
 
 In SQLAlchemy, `commit()` finalises a transaction. mongotic has no transactions, so `commit()` is simply an alias for `flush()` — it writes all staged ops to MongoDB immediately. The alias exists for API familiarity and to ease migration from SQLAlchemy-backed codebases.
+
+---
+
+## `Mapped[T]` descriptors (v0.6+)
+
+Static type checkers (pyright, mypy) cannot see through Pydantic v2's
+`dataclass_transform` to a metaclass `__getattr__` fallback. Concretely, a
+field declared as `name: str = Field(...)` is statically typed as `str` at
+both class and instance level — so `User.name == "x"` was inferred as
+`bool`, and `User.name.in_([...])` as an attribute error on `str`, even
+though both worked at runtime.
+
+v0.6.0 introduces a SQLAlchemy 2.0-style `Mapped[T]` descriptor declared
+via `mapped_field()` (which subclasses Pydantic's `FieldInfo` so every
+existing field metadata option flows through). At class level the
+descriptor returns itself with operators that build `ModelFieldOperation`;
+at instance level it returns the underlying `T` via `__get__`/`__set__`
+overloads. Pyright follows the descriptor protocol natively, so the
+class-level magic is fully visible to the type checker — no plugin
+required.
+
+A legacy `T = Field(...)` declaration still runs in v0.6: the metaclass
+installs a `Mapped` descriptor for every model field regardless of how it
+was declared, so `User.name == "x"` keeps building a query expression. The
+declaration just won't *type-check* as one until the field annotation
+becomes `Mapped[T]`. A `DeprecationWarning` is emitted at class creation
+to flag the migration; the compatibility shim is planned for removal in
+v0.7.0.
+
+See [the migration guide](migration-v0.5-to-v0.6.md) for the substitution
+recipe and the rejected alternatives (a `col()` helper, loosening
+`where()`'s signature) that the descriptor approach replaces.

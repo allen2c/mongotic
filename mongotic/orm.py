@@ -11,6 +11,7 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     Type,
     TypeVar,
@@ -147,7 +148,7 @@ class Session(Protocol):
 
     def add(self, instance: MongoBaseModel) -> None: ...
 
-    def add_all(self, instances: List[MongoBaseModel]) -> None: ...
+    def add_all(self, instances: Sequence[MongoBaseModel]) -> None: ...
 
     def delete(self, instance: MongoBaseModel) -> None: ...
 
@@ -224,8 +225,8 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
             return ScalarResult(
                 collection=collection,
                 stmt=stmt,  # type: ignore[arg-type]
-                model=stmt._model,  # type: ignore[arg-type]
-                session=self,  # type: ignore[arg-type]
+                model=stmt._model,
+                session=self,
             )
 
         def scalar(self, stmt: "Select[_T]") -> Optional[_T]:
@@ -309,7 +310,7 @@ def sessionmaker(bind: MongoClient) -> Type[Session]:
             _assert_model_bound(instance)
             self._add_instances.append(instance)
 
-        def add_all(self, instances: List[MongoBaseModel]) -> None:
+        def add_all(self, instances: Sequence[MongoBaseModel]) -> None:
             for instance in instances:
                 self.add(instance)
 

@@ -2,9 +2,9 @@ from typing import Optional
 
 import pytest
 from bson import ObjectId
-from pydantic import Field
 from pymongo import MongoClient
 
+from mongotic import Mapped, mapped_field
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -16,9 +16,9 @@ class User(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "user_merge"
 
-    name: str = Field(...)
-    company: Optional[str] = Field(None)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    company: Mapped[Optional[str]] = mapped_field(default=None)
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 @pytest.fixture(autouse=True)
@@ -115,7 +115,7 @@ def test_merge_clears_pending_updates_for_instance(mongo_engine: "MongoClient") 
         session.flush()
 
         doc = mongo_engine["test"]["user_merge"].find_one({"_id": ObjectId(user._id)})
-        assert doc["age"] == 21  # the in-memory value was persisted
+        assert doc is not None and doc["age"] == 21  # the in-memory value was persisted
 
 
 def test_merge_staging_cleared_after_flush(mongo_engine: "MongoClient") -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "mongotic"
-version = "0.5.1"
+version = "0.6.0"
 description = "The concept of MongoDB, SQLAlchemy and Pydantic."
 authors = [{ name = "Allen Chou", email = "f1470891079@gmail.com" }]
 license = "MIT"
@@ -72,11 +72,14 @@ typeCheckingMode = "basic"
 reportArgumentType = "error"
 reportGeneralTypeIssues = "error"
 reportReturnType = "error"
-# Known limitation: Pydantic-declared fields are statically typed as their value type
-# (e.g. `str`), so `Model.field.in_(...)` / `.like(...)` / `.between(...)` warn. The
-# `.where(*conditions: bool | FilterType)` signature loosening accepts the common
-# `Model.field == "x"` pattern; full IDE support for the rest is planned for v0.6.0
-# via a Mapped[T] descriptor.
+reportAttributeAccessIssue = "error"
+# v0.6.0: the Mapped[T] descriptor + mapped_field() resolves the Pydantic-field
+# typing limitations from earlier versions. All query-operator patterns (.in_,
+# .like, .between, ==, >, etc.) are statically typed end to end. Legacy Field()
+# declarations still work at runtime but pyright cannot infer Mapped[T] from a
+# plain value-type annotation — those call sites stay warning-prone until the
+# author migrates to the new declaration style. The compat shim is planned for
+# removal in v0.7.0.
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]

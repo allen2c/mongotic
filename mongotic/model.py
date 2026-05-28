@@ -1,25 +1,34 @@
 import re
+import warnings
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     ClassVar,
     Dict,
+    Generic,
     Iterable,
     List,
     Optional,
-    Type,
+    TypeVar,
     Union,
+    get_args,
+    overload,
 )
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, GetCoreSchemaHandler, PrivateAttr
 from pydantic._internal import _model_construction
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined, core_schema
 
 if TYPE_CHECKING:
     from mongotic.orm import Session
 
 NOT_SET_SENTINEL = object()
+
+_T_field = TypeVar("_T_field")
 
 
 def _assert_model_bound(instance):
@@ -199,24 +208,18 @@ class CompoundFilter:
 # Type alias for anything accepted in .where() / to_mongo_filter()
 FilterType = Union[ModelFieldOperation, CompoundFilter]
 
-# Static-typing helper. Pydantic-declared fields make ``Model.field == value``
-# statically typed as ``bool`` (because pyright sees the field as its value type,
-# not as ModelField), even though it returns ModelFieldOperation at runtime.
-# Accepting ``bool`` here keeps call sites IDE-clean without a wrapper helper.
-WhereArg = Union[FilterType, bool]
 
-
-def or_(*conditions: WhereArg) -> CompoundFilter:
+def or_(*conditions: FilterType) -> CompoundFilter:
     """Combine conditions with logical OR ($or)."""
-    return CompoundFilter(op="$or", children=list(conditions))  # type: ignore[arg-type]
+    return CompoundFilter(op="$or", children=list(conditions))
 
 
-def and_(*conditions: WhereArg) -> CompoundFilter:
+def and_(*conditions: FilterType) -> CompoundFilter:
     """Combine conditions with logical AND ($and)."""
-    return CompoundFilter(op="$and", children=list(conditions))  # type: ignore[arg-type]
+    return CompoundFilter(op="$and", children=list(conditions))
 
 
-def not_(condition: WhereArg) -> CompoundFilter:
+def not_(condition: FilterType) -> CompoundFilter:
     """Negate a condition.
 
     - Single ModelFieldOperation  → field-level ``$not``
@@ -252,65 +255,122 @@ def _like_to_regex(pattern: str) -> str:
     return "^" + "".join(parts) + "$"
 
 
-class ModelField(object):
-    def __init__(self, field_name: str, model_class: Type["MongoBaseModel"]):
-        self.field_name = field_name
-        self.model_class = model_class
+class Mapped(Generic[_T_field]):
+    """ORM-instrumented attribute descriptor.
 
-    def __repr__(self) -> str:
-        return f"<ModelField(FieldName={self.field_name}, Bind={self.model_class.__name__})>"
+    Class-level access (``User.name``) returns this descriptor — with
+    comparison and method operators that build ``ModelFieldOperation``.
+    Instance-level access (``user.name``) returns the underlying value of
+    type ``_T_field``.
 
+    Declare model fields with ``Mapped[T]`` and ``mapped_field()`` to get
+    full IDE / pyright support for query operators (``in_``, ``like``,
+    ``between``, ``==``, etc.).
+    """
+
+    __slots__ = ("_field_name", "_owner")
+
+    def __init__(self) -> None:
+        self._field_name: str = ""
+        self._owner: Optional[type] = None
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._field_name = name
+        self._owner = owner
+
+    @overload
+    def __get__(self, instance: None, owner: type) -> "Mapped[_T_field]": ...
+    @overload
+    def __get__(self, instance: object, owner: type) -> _T_field: ...
+
+    def __get__(self, instance: Any, owner: Any) -> Any:
+        if instance is None:
+            return self
+        return instance.__dict__[self._field_name]
+
+    def __set__(self, instance: Any, value: _T_field) -> None:
+        # Delegate so Pydantic's validate_assignment hook runs.
+        BaseModel.__setattr__(instance, self._field_name, value)
+
+    def __hash__(self) -> int:
+        return id(self)
+
+    # ── comparison operators ────────────────────────────────────────────────
     def __eq__(self, other: object) -> "ModelFieldOperation":  # type: ignore[override]
         return ModelFieldOperation(
-            model_field=self, operation=Operator.EQUAL, value=other
+            model_field=self,
+            operation=Operator.EQUAL,
+            value=other,
         )
 
     def __ne__(self, other: object) -> "ModelFieldOperation":  # type: ignore[override]
         return ModelFieldOperation(
-            model_field=self, operation=Operator.NOT_EQUAL, value=other
+            model_field=self,
+            operation=Operator.NOT_EQUAL,
+            value=other,
         )
 
     def __gt__(self, other: object) -> "ModelFieldOperation":
         return ModelFieldOperation(
-            model_field=self, operation=Operator.GREATER_THAN, value=other
+            model_field=self,
+            operation=Operator.GREATER_THAN,
+            value=other,
         )
 
     def __ge__(self, other: object) -> "ModelFieldOperation":
         return ModelFieldOperation(
-            model_field=self, operation=Operator.GREATER_THAN_EQUAL, value=other
+            model_field=self,
+            operation=Operator.GREATER_THAN_EQUAL,
+            value=other,
         )
 
     def __lt__(self, other: object) -> "ModelFieldOperation":
         return ModelFieldOperation(
-            model_field=self, operation=Operator.LESS_THAN, value=other
+            model_field=self,
+            operation=Operator.LESS_THAN,
+            value=other,
         )
 
     def __le__(self, other: object) -> "ModelFieldOperation":
         return ModelFieldOperation(
-            model_field=self, operation=Operator.LESS_THAN_EQUAL, value=other
+            model_field=self,
+            operation=Operator.LESS_THAN_EQUAL,
+            value=other,
         )
 
-    def in_(self, other: Iterable[Any]) -> "ModelFieldOperation":
-        return ModelFieldOperation(model_field=self, operation=Operator.IN, value=other)
+    def __neg__(self) -> "ModelFieldSort":
+        return ModelFieldSort(model_field=self, direction=SortDirection.DESC)
 
-    def not_in(self, other: Iterable[Any]) -> "ModelFieldOperation":
+    # ── method operators ────────────────────────────────────────────────────
+    def in_(self, values: Iterable[Any]) -> "ModelFieldOperation":
         return ModelFieldOperation(
-            model_field=self, operation=Operator.NOT_IN, value=other
+            model_field=self,
+            operation=Operator.IN,
+            value=values,
+        )
+
+    def not_in(self, values: Iterable[Any]) -> "ModelFieldOperation":
+        return ModelFieldOperation(
+            model_field=self,
+            operation=Operator.NOT_IN,
+            value=values,
         )
 
     def is_(self, value: object) -> "ModelFieldOperation":
-        """Match documents where the field equals *value* (supports ``None`` for null check)."""
+        """Equality (supports ``None`` for null check)."""
         return ModelFieldOperation(
-            model_field=self, operation=Operator.EQUAL, value=value
+            model_field=self,
+            operation=Operator.EQUAL,
+            value=value,
         )
 
     def is_not(self, value: object) -> "ModelFieldOperation":
-        """Match documents where the field does not equal *value* (supports ``None``)."""
+        """Negated equality (supports ``None``)."""
         return ModelFieldOperation(
-            model_field=self, operation=Operator.NOT_EQUAL, value=value
+            model_field=self,
+            operation=Operator.NOT_EQUAL,
+            value=value,
         )
-
-    # ── string operators ────────────────────────────────────────────────────
 
     def like(self, pattern: str) -> "ModelFieldOperation":
         """SQL LIKE match (``%`` = any chars, ``_`` = one char). Case-sensitive."""
@@ -352,31 +412,179 @@ class ModelField(object):
             value=RegexValue(pattern=re.escape(value) + "$"),
         )
 
-    # ── range operator ───────────────────────────────────────────────────────
-
     def between(self, low: object, high: object) -> "ModelFieldOperation":
-        """Inclusive range: ``low <= field <= high``.
-
-        Equivalent to ``and_(field >= low, field <= high)`` but rendered as a
-        single ``{"$gte": low, "$lte": high}`` expression for index efficiency.
-        """
+        """Inclusive range: ``low <= field <= high``."""
         return ModelFieldOperation(
-            model_field=self, operation=Operator.BETWEEN, value=(low, high)
+            model_field=self,
+            operation=Operator.BETWEEN,
+            value=(low, high),
         )
 
-    def __neg__(self) -> "ModelFieldSort":
-        return ModelFieldSort(model_field=self, direction=SortDirection.DESC)
+    # ── name compatibility ─────────────────────────────────────────────────
+    @property
+    def field_name(self) -> str:
+        """Compatibility shim for code that reads ``ModelField.field_name``."""
+        return self._field_name
+
+    @property
+    def model_class(self) -> Optional[type]:
+        """Compatibility shim for code that reads ``ModelField.model_class``.
+
+        ``None`` only when the descriptor was instantiated directly and not
+        installed onto a class (typically a unit-test scenario).
+        """
+        return self._owner
+
+    # ── Pydantic integration ───────────────────────────────────────────────
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: Any,
+        handler: GetCoreSchemaHandler,
+    ) -> core_schema.CoreSchema:
+        # Unwrap Mapped[T] → T for Pydantic validation/serialization.
+        args = get_args(source_type)
+        if not args:
+            return core_schema.any_schema()
+        return handler(args[0])
+
+
+# Backward-compat alias. ``ModelField`` was a separate class in v0.5; v0.6
+# unifies it with ``Mapped[Any]`` so existing internals (Select projection
+# lists, ModelFieldSort/ModelFieldOperation.model_field, etc.) keep working
+# unchanged.
+ModelField = Mapped[Any]
+
+
+class MongoFieldInfo(FieldInfo):  # type: ignore[misc]
+    """Extends ``pydantic.fields.FieldInfo`` with Mongo-specific metadata.
+
+    The ``# type: ignore[misc]`` is required because Pydantic v2 marks
+    ``FieldInfo`` with ``@final`` for type checkers. Runtime allows
+    subclassing, and Pydantic's own internals subclass ``FieldInfo`` in
+    places too.
+    """
+
+    __slots__ = ("index", "unique", "sparse")
+
+    def __init__(
+        self,
+        *,
+        index: bool = False,
+        unique: bool = False,
+        sparse: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.index = index
+        self.unique = unique
+        self.sparse = sparse
+
+
+def mapped_field(
+    default: Any = PydanticUndefined,
+    *,
+    default_factory: Optional[Callable[[], Any]] = None,
+    alias: Optional[str] = None,
+    validation_alias: Optional[str] = None,
+    serialization_alias: Optional[str] = None,
+    description: Optional[str] = None,
+    examples: Optional[List[Any]] = None,
+    gt: Optional[float] = None,
+    ge: Optional[float] = None,
+    lt: Optional[float] = None,
+    le: Optional[float] = None,
+    multiple_of: Optional[float] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    pattern: Optional[str] = None,
+    index: bool = False,
+    unique: bool = False,
+    sparse: bool = False,
+    **kwargs: Any,
+) -> Any:
+    """Mongotic field declaration. Wraps Pydantic ``Field()`` and adds Mongo
+    extras (``index`` / ``unique`` / ``sparse``).
+
+    Returns ``Any`` (not ``MongoFieldInfo``) so the result is assignable to a
+    ``Mapped[T]`` annotation without type-checker complaint.
+    """
+    return MongoFieldInfo(
+        default=default,
+        default_factory=default_factory,
+        alias=alias,
+        validation_alias=validation_alias,
+        serialization_alias=serialization_alias,
+        description=description,
+        examples=examples,
+        gt=gt,
+        ge=ge,
+        lt=lt,
+        le=le,
+        multiple_of=multiple_of,
+        min_length=min_length,
+        max_length=max_length,
+        pattern=pattern,
+        index=index,
+        unique=unique,
+        sparse=sparse,
+        **kwargs,
+    )
 
 
 class MongoBaseModelMeta(_model_construction.ModelMetaclass):
-    def __getattr__(cls, item: str) -> "ModelField":
-        try:
-            return super().__getattr__(item)  # type: ignore[misc]
-        except AttributeError as e:
-            if item in cls.__dict__.get("__annotations__", {}):
-                return ModelField(field_name=item, model_class=cls)  # type: ignore[arg-type]
-            else:
-                raise e
+    def __new__(
+        mcs,
+        name: str,
+        bases: tuple,
+        namespace: Dict[str, Any],
+        **kwargs: Any,
+    ) -> "MongoBaseModelMeta":
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        # After Pydantic processes annotated fields, install a Mapped descriptor
+        # for each so class-level attribute access yields a typed query
+        # expression (User.name → Mapped[str]) while instance access still
+        # returns the underlying value (user.name → str).
+        model_fields: Dict[str, FieldInfo] = cls.model_fields  # type: ignore[attr-defined]
+        for field_name, field_info in model_fields.items():
+            existing = namespace.get(field_name)
+            if not isinstance(existing, Mapped):
+                descriptor: Mapped = Mapped()
+                descriptor.__set_name__(cls, field_name)
+                setattr(cls, field_name, descriptor)
+            # Emit a DeprecationWarning for fields declared with plain
+            # pydantic.Field() instead of mongotic.mapped_field(). The runtime
+            # still works (descriptor was installed above), but IDE / pyright
+            # cannot see Mapped-style typing on the field.
+            if (
+                field_info is not None
+                and not isinstance(field_info, MongoFieldInfo)
+                and not _is_inherited_field(field_name, bases)
+            ):
+                warnings.warn(
+                    (
+                        f"{name}.{field_name} is declared with pydantic.Field() "
+                        f"(or has no explicit field info) and will lose IDE "
+                        f"support for query operators (.in_, .like, .between, "
+                        f"etc.). Migrate to: "
+                        f"{field_name}: Mapped[...] = mapped_field(...). "
+                        f"This compatibility shim is planned for removal in "
+                        f"v0.7.0."
+                    ),
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+        return cls
+
+
+def _is_inherited_field(field_name: str, bases: tuple) -> bool:
+    """A field already declared (and warned about) on a base class should not
+    trigger another warning when the subclass is constructed."""
+    for base in bases:
+        base_fields = getattr(base, "model_fields", None)
+        if base_fields and field_name in base_fields:
+            return True
+    return False
 
 
 class MongoBaseModel(BaseModel, metaclass=MongoBaseModelMeta):

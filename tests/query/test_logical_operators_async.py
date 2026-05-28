@@ -1,10 +1,9 @@
 """Async smoke tests for or_(), and_(), not_() logical combinators via AsyncSession."""
 
 import pytest
-from pydantic import Field
 from pymongo import AsyncMongoClient
 
-from mongotic import and_, insert, not_, or_, select
+from mongotic import Mapped, and_, insert, mapped_field, not_, or_, select
 from mongotic.asyncio import AsyncSession, async_sessionmaker
 from mongotic.model import MongoBaseModel
 from tests.helpers import rand_str
@@ -22,9 +21,9 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"async_logic_{rand_str(8)}"
 
-    tag: str = Field(...)
-    role: str = Field(...)
-    age: int = Field(...)
+    tag: Mapped[str] = mapped_field()
+    role: Mapped[str] = mapped_field()
+    age: Mapped[int] = mapped_field()
 
 
 @pytest.fixture

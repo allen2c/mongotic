@@ -1,9 +1,8 @@
 from typing import Optional
 
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import insert, select, update
+from mongotic import Mapped, insert, mapped_field, select, update
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -13,8 +12,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"lifecycle_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 def _s(mongo_engine):

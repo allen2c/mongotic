@@ -1,10 +1,10 @@
 from typing import Optional
 
 import pytest
-from pydantic import Field, ValidationError
+from pydantic import ValidationError
 from pymongo import MongoClient
 
-from mongotic import insert
+from mongotic import Mapped, insert, mapped_field
 from mongotic.model import MongoBaseModel
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -14,8 +14,8 @@ class _U(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = f"insert_stmt_{rand_str(8)}"
 
-    name: str = Field(...)
-    age: Optional[int] = Field(None)
+    name: Mapped[str] = mapped_field()
+    age: Mapped[Optional[int]] = mapped_field(default=None)
 
 
 def _s(mongo_engine):

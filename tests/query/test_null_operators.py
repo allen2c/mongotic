@@ -8,10 +8,9 @@ MongoDB behaviour:
 from typing import Optional
 
 import pytest
-from pydantic import Field
 from pymongo import MongoClient
 
-from mongotic import and_, not_, or_, select
+from mongotic import Mapped, and_, mapped_field, not_, or_, select
 from mongotic.model import ModelFieldOperation, MongoBaseModel, Operator
 from mongotic.orm import sessionmaker
 from tests.helpers import rand_str
@@ -23,9 +22,9 @@ class NullUser(MongoBaseModel):
     __databasename__ = "test"
     __tablename__ = "null_user"
 
-    tag: str = Field(...)
-    name: str = Field(...)
-    email: Optional[str] = Field(None)
+    tag: Mapped[str] = mapped_field()
+    name: Mapped[str] = mapped_field()
+    email: Mapped[Optional[str]] = mapped_field(default=None)
 
 
 # ---------------------------------------------------------------------------
